@@ -1,0 +1,64 @@
+import { AFTER_TAX_FACTOR, ASSUMED_LTV } from '@/data/taxTable';
+
+export type BidCalcInput = {
+  /** 매도가(원) */
+  sellPrice: number;
+  /** 매도잔금기간(개월) */
+  months: number;
+  /** 대출이자율(비율, 예: 0.045) */
+  loanRate: number;
+  /** 목표 마진(비율) */
+  margin: number;
+  /** 취득 비용률(비율) */
+  costRate: number;
+};
+
+export type BidCalcResult = {
+  bidPrice: number;
+  grossProfit: number;
+  netProfit: number;
+  netYield: number;
+  loanPrincipal: number;
+  interestCost: number;
+  invested: number;
+  costAmt: number;
+};
+
+/**
+ * 목표마진 기반 입찰가를 역산합니다.
+ * @param input - 입찰가 계산 입력
+ * @returns 역산 결과
+ */
+export function calcBid(input: BidCalcInput): BidCalcResult {
+  const { sellPrice, months, loanRate, margin, costRate } = input;
+  const costAmt = sellPrice * costRate;
+  const marginAmt = sellPrice * margin;
+  const bidPrice = sellPrice - costAmt - marginAmt;
+  const grossProfit = marginAmt;
+  const loanPrincipal = bidPrice * ASSUMED_LTV;
+  const interestCost = loanPrincipal * loanRate * (months / 12);
+  const netProfit = grossProfit * AFTER_TAX_FACTOR - interestCost;
+  const invested = bidPrice - loanPrincipal;
+  const netYield = invested > 0 ? (netProfit / invested) * 100 : 0;
+
+  return {
+    bidPrice,
+    grossProfit,
+    netProfit,
+    netYield,
+    loanPrincipal,
+    interestCost,
+    invested,
+    costAmt,
+  };
+}
+
+/**
+ * 목표 마진 슬라이더 라벨 텍스트.
+ * @param marginPct - 마진 % (3~15)
+ */
+export function marginLabelText(marginPct: number): string {
+  if (marginPct <= 4) return '저마진';
+  if (marginPct <= 6.5) return '중마진';
+  return '고마진';
+}
