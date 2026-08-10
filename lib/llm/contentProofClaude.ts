@@ -6,7 +6,7 @@ import {
 } from './contentProofPrompt';
 import { fetchWithTimeout, LLM_TIMEOUT_MS } from './fetchTimeout';
 
-const CLAUDE_MODEL = 'claude-opus-5';
+const CLAUDE_MODEL = 'claude-sonnet-5';
 
 export async function draftContentProofWithClaude(
   conversation: string,

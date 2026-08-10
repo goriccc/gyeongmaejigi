@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 export type ContentProofModelResult = ContentProofDraft & {
-  model: 'claude-opus-5' | 'deepseek-v4-pro';
+  model: 'claude-sonnet-5';
   label: string;
   latencyMs?: number;
   error?: string;

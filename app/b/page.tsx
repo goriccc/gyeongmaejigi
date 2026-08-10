@@ -46,10 +46,7 @@ export default function RightsAnalysisPage() {
   }
 
   function persistCompare(next: RightsAnalysisCompare) {
-    const merged = mergeRiskFlagsForChecklist(
-      next.claude?.riskFlags ?? [],
-      [],
-    );
+    const merged = mergeRiskFlagsForChecklist(next.claude?.riskFlags ?? []);
     if (!activeCase) return;
     const checklist = buildChecklist(merged, activeCase.checklist);
     updateCase(activeCase.id, {

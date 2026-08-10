@@ -198,7 +198,7 @@ export type RightsLlmPayload = {
   judgment: string;
   fileNames: string[];
   documentText: string;
-  /** Claude용 PDF 원본 (DeepSeek에는 텍스트 추출본을 documentText에 합침) */
+  /** Claude Messages API document 첨부용 PDF */
   pdfs?: PdfAttachment[];
 };
 
@@ -410,16 +410,13 @@ export function parseRightsAnalysisJson(
 }
 
 /**
- * 두 모델의 warning/mismatch를 합쳐 모듈 C용 riskFlags를 만듭니다.
+ * 동일 label 플래그를 합쳐 모듈 C용 riskFlags를 만듭니다.
  */
-export function mergeRiskFlagsForChecklist(
-  a: RiskFlag[],
-  b: RiskFlag[],
-): RiskFlag[] {
+export function mergeRiskFlagsForChecklist(flags: RiskFlag[]): RiskFlag[] {
   const map = new Map<string, RiskFlag>();
   const severity = { ok: 0, mismatch: 1, warning: 2 } as const;
 
-  for (const flag of [...a, ...b]) {
+  for (const flag of flags) {
     const prev = map.get(flag.label);
     if (!prev || severity[flag.status] >= severity[prev.status]) {
       map.set(flag.label, {
@@ -430,7 +427,7 @@ export function mergeRiskFlagsForChecklist(
             ? true
             : (flag.userMentioned ?? prev?.userMentioned ?? null),
       });
-    } else if (prev) {
+    } else {
       map.set(flag.label, {
         ...prev,
         eligibility: prev.eligibility ?? flag.eligibility ?? null,

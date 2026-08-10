@@ -20,7 +20,7 @@ const DEFAULT_PASTE = `점유자: 안녕하세요, 낙찰받으신 분 맞으시
 점유자: 한 달 정도만 더 여유를 주시면 안될까요? 저도 이사 갈 형편이 넉넉지 않아서 걱정이 많아요.`;
 
 type ContentProofModelResult = {
-  model: 'claude-opus-5' | 'deepseek-v4-pro';
+  model: 'claude-sonnet-5';
   label: string;
   title: string;
   body: string;

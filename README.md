@@ -38,11 +38,11 @@ pnpm dev
 
 ## 권리분석 LLM (제2장)
 
-대조 분석 시 `claude-opus-5`와 `deepseek-v4-pro`(thinking on)를 병렬 호출합니다.
+권리분석·명도코칭·내용증명은 Anthropic Claude API를 사용합니다.
 
 ```bash
 cp .env.example .env.local
-# ANTHROPIC_API_KEY, DEEPSEEK_API_KEY 입력
+# ANTHROPIC_API_KEY 입력
 ```
 
 Vercel 배포 시에도 동일 환경변수를 설정하세요. 원본 문서·대화는 저장하지 않습니다.

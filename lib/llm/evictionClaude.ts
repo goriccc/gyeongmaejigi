@@ -6,10 +6,10 @@ import {
 } from './evictionPrompt';
 import { fetchWithTimeout, LLM_TIMEOUT_MS } from './fetchTimeout';
 
-const CLAUDE_MODEL = 'claude-opus-5';
+const CLAUDE_MODEL = 'claude-sonnet-5';
 
 /**
- * Claude Opus 5는 temperature 비기본값을 거부합니다(400).
+ * Claude Sonnet 5는 temperature 비기본값을 거부합니다(400).
  * 명도코칭의 높은 창의성(요청 temperature 0.7)은 effort: high로 근사합니다.
  */
 export async function analyzeEvictionWithClaude(

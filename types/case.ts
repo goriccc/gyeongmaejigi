@@ -27,7 +27,7 @@ export type ParsedRightsFields = {
 };
 
 export type ModelAnalysisResult = {
-  model: 'claude-opus-5' | 'deepseek-v4-pro';
+  model: 'claude-opus-5';
   label: string;
   summary: string;
   documentsProvided?: string[];
@@ -39,12 +39,11 @@ export type ModelAnalysisResult = {
 
 export type RightsAnalysisCompare = {
   claude?: ModelAnalysisResult;
-  deepseek?: ModelAnalysisResult;
   analyzedAt: string;
 };
 
 export type EvictionModelResult = {
-  model: 'claude-opus-5' | 'deepseek-v4-pro';
+  model: 'claude-sonnet-5';
   label: string;
   crisisFlag: boolean;
   crisisNote: string | null;
@@ -62,7 +61,6 @@ export type EvictionModelResult = {
 
 export type EvictionCoachCompare = {
   claude?: EvictionModelResult;
-  deepseek?: EvictionModelResult;
   analyzedAt: string;
 };
 

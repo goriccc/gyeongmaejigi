@@ -8,7 +8,7 @@ export async function fileToBase64(file: File): Promise<string> {
 }
 
 /**
- * PDF에서 텍스트를 추출합니다. (DeepSeek용 — PDF 원본 미지원)
+ * PDF에서 텍스트를 추출합니다. (문서 본문 합침·검색용)
  * 스캔본(이미지 PDF)은 텍스트가 거의 없을 수 있습니다.
  */
 export async function extractPdfText(
