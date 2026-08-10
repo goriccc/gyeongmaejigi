@@ -35,3 +35,14 @@ pnpm dev
 - `/e` 제5장 명도 코칭
 
 개발용 시드 데이터는 `scripts/seedCases.ts`를 참고하세요. 앱 최초 실행에는 자동 주입되지 않습니다.
+
+## 권리분석 LLM (제2장)
+
+대조 분석 시 `claude-opus-5`와 `deepseek-v4-pro`(thinking on)를 병렬 호출합니다.
+
+```bash
+cp .env.example .env.local
+# ANTHROPIC_API_KEY, DEEPSEEK_API_KEY 입력
+```
+
+Vercel 배포 시에도 동일 환경변수를 설정하세요. 원본 문서·대화는 저장하지 않습니다.

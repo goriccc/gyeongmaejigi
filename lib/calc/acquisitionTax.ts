@@ -1,18 +1,11 @@
-import {
-  ACQUISITION_TAX_BRACKETS,
-  MULTI_HOUSE_SURCHARGE_RATE,
-} from '@/data/taxTable';
+import { ACQUISITION_TAX_BRACKETS } from '@/data/taxTable';
 
-/**
- * 낙찰가·주택수 기준 취득세율(비율)을 반환합니다.
- * @param price - 낙찰가(원)
- * @param houseCount - 현재 주택수 (0/1/2+)
- * @returns 취득세율 (0~1)
- */
-export function acquisitionTaxRate(price: number, houseCount: number): number {
-  if (houseCount >= 2) {
-    return MULTI_HOUSE_SURCHARGE_RATE;
-  }
+export type RegZone = 'none' | 'adjusted' | 'overheated';
+
+/** 현재 보유 주택수 (3 = 3주택 이상 → 매수 후 4주택 이상) */
+export type HouseCount = 0 | 1 | 2 | 3;
+
+function progressiveRate(price: number): number {
   if (price <= ACQUISITION_TAX_BRACKETS.low) return 0.01;
   if (price <= ACQUISITION_TAX_BRACKETS.high) {
     return (price * 2) / 300_000_000 / 100 - 3 / 100;
@@ -21,33 +14,61 @@ export function acquisitionTaxRate(price: number, houseCount: number): number {
 }
 
 /**
- * 모듈 D용 취득세율 — 다주택 중과 없이 낙찰가 구간만 적용합니다.
- * @param price - 낙찰가(원)
+ * 낙찰가·주택수·규제구분·특례 기준 취득세율(비율)을 반환합니다.
  */
-export function progressiveAcquisitionTaxRate(price: number): number {
-  return acquisitionTaxRate(price, 0);
+export function acquisitionTaxRate(
+  price: number,
+  houseCount: number,
+  regZone: RegZone = 'none',
+  lowPriceException = false,
+  dispositionPlanned = false,
+): number {
+  if (dispositionPlanned || lowPriceException) {
+    return progressiveRate(price);
+  }
+  const regulated = regZone === 'adjusted' || regZone === 'overheated';
+  if (houseCount >= 3) return 0.12;
+  if (houseCount === 2) return regulated ? 0.12 : 0.08;
+  if (houseCount === 1 && regulated) return 0.08;
+  return progressiveRate(price);
 }
 
 /**
- * 지방교육세율(비율)을 반환합니다.
- * @param price - 낙찰가(원)
- * @param taxRate - 적용 취득세율
+ * 생애최초 취득세 감면 (취득가액 12억 이하, 200만원 한도).
+ * 전용 60㎡ 이하 300만원 한도는 면적정보 없어 미반영.
  */
+export function firstTimeTaxDeduction(
+  firstTimeBuyer: boolean,
+  price: number,
+  taxAmt: number,
+): number {
+  if (!firstTimeBuyer || price > 1_200_000_000) return 0;
+  return Math.min(taxAmt, 2_000_000);
+}
+
+export function progressiveAcquisitionTaxRate(price: number): number {
+  return acquisitionTaxRate(price, 0, 'none', false, false);
+}
+
 export function eduTaxRate(price: number, taxRate: number): number {
   if (price <= ACQUISITION_TAX_BRACKETS.low) return 0.001;
   if (price <= ACQUISITION_TAX_BRACKETS.high) return taxRate / 10;
   return 0.003;
 }
 
-/**
- * 취득세 금액을 계산합니다.
- * @param price - 낙찰가(원)
- * @param houseCount - 현재 주택수
- */
 export function calcAcquisitionTax(
   price: number,
   houseCount: number,
+  regZone: RegZone = 'none',
+  lowPriceException = false,
+  dispositionPlanned = false,
 ): { rate: number; amount: number } {
-  const rate = acquisitionTaxRate(price, houseCount);
+  const rate = acquisitionTaxRate(
+    price,
+    houseCount,
+    regZone,
+    lowPriceException,
+    dispositionPlanned,
+  );
   return { rate, amount: price * rate };
 }

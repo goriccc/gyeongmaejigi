@@ -81,26 +81,20 @@ export function buildChecklist(
   });
 }
 
-/** 1단계 고정 목업 권리분석 결과 */
+/** 개발·테스트용 샘플 플래그 */
 export const MOCK_RISK_FLAGS: RiskFlag[] = [
   {
     label: '대항력 있는 임차인 여부',
     status: 'warning',
-    note: '현황조사서상 폐문부재, 전입세대열람 재확인 권장',
+    note: '현황조사서상 폐문부재로 전입일자 확인이 필요할 수 있습니다.',
+    sourceQuote: null,
+    userMismatch: null,
   },
   {
     label: '말소기준권리',
     status: 'ok',
-    note: '2021.03 근저당권 — 본인 판단과 일치',
-  },
-  {
-    label: '유치권 신고 여부',
-    status: 'ok',
-    note: '매각물건명세서상 신고 없음',
-  },
-  {
-    label: '인수되는 권리',
-    status: 'ok',
-    note: '없음으로 판단 — 재검토 권장 항목 아님',
+    note: '근저당권이 말소기준권리로 보이는지 확인이 필요합니다.',
+    sourceQuote: null,
+    userMismatch: null,
   },
 ];

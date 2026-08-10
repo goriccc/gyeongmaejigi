@@ -1,7 +1,8 @@
+import type { HouseCount, RegZone } from './acquisitionTax';
+
 /**
  * 주택수별 기준 LTV를 반환합니다.
- * @param houseCount - 0: 무주택, 1: 1주택, 2+: 2주택 이상
- * @returns LTV 비율 (0~1)
+ * 지방·비규제 다주택 영역에서 쓰이는 시작값 — 정부 고시가 아닌 임의 가정치.
  */
 export function baseLTV(houseCount: number): number {
   if (houseCount === 0) return 0.7;
@@ -10,11 +11,44 @@ export function baseLTV(houseCount: number): number {
 }
 
 /**
- * 신용 보정(+/-)을 적용하고 0.2~0.8로 클램프합니다.
- * @param houseCount - 현재 주택수
- * @param creditAdj - LTV 보정치 (우수 +0.05, 보통 0, 주의 -0.05)
- * @returns 적용 LTV
+ * LTV 상한 (2025.6.27 + 2025.10.15 대책)
  */
+export function ltvCap(
+  sudogwon: boolean,
+  regZone: RegZone,
+  houseCount: HouseCount,
+  lowPriceException: boolean,
+  dispositionPlanned: boolean,
+  lenderLtv: number,
+  firstTimeBuyer: boolean,
+  realDemand: boolean,
+): number {
+  if (houseCount >= 1) {
+    if (dispositionPlanned) {
+      return regZone === 'adjusted' || regZone === 'overheated' ? 0.4 : 0.7;
+    }
+    if (sudogwon) {
+      return lowPriceException ? lenderLtv : 0;
+    }
+    return 1; // 지방: 상한 없음(참고치)
+  }
+  const regulated = regZone === 'adjusted' || regZone === 'overheated';
+  if (firstTimeBuyer) return sudogwon || regulated ? 0.7 : 0.8;
+  if (realDemand && regulated) return 0.6;
+  if (regulated) return 0.4;
+  return 1;
+}
+
+/**
+ * 대출한도 절대금액 캡 (2025.10.15, 수도권 한정. 지방은 캡 없음).
+ */
+export function loanAmountCap(isSudogwon: boolean, price: number): number {
+  if (!isSudogwon) return Number.POSITIVE_INFINITY;
+  if (price <= 1_500_000_000) return 600_000_000;
+  if (price <= 2_500_000_000) return 400_000_000;
+  return 200_000_000;
+}
+
 export function applyLtvWithCredit(
   houseCount: number,
   creditAdj: number,
@@ -22,7 +56,55 @@ export function applyLtvWithCredit(
   return Math.min(0.8, Math.max(0.2, baseLTV(houseCount) + creditAdj));
 }
 
-/** 신용 상태 → LTV 보정·가정금리 매핑 */
+export function applyLtvWithPolicy(
+  houseCount: HouseCount,
+  creditAdj: number,
+  sudogwon: boolean,
+  regZone: RegZone,
+  lowPriceException: boolean,
+  dispositionPlanned: boolean,
+  lenderLtv: number,
+  firstTimeBuyer: boolean,
+  realDemand: boolean,
+): number {
+  const base = applyLtvWithCredit(houseCount, creditAdj);
+  const cap = ltvCap(
+    sudogwon,
+    regZone,
+    houseCount,
+    lowPriceException,
+    dispositionPlanned,
+    lenderLtv,
+    firstTimeBuyer,
+    realDemand,
+  );
+  return Math.min(base, cap);
+}
+
+/** @deprecated */
+export function regZoneLtvCap(zone: RegZone, houseCount: number): number {
+  if (zone === 'adjusted') {
+    if (houseCount === 0) return 0.5;
+    if (houseCount === 1) return 0.4;
+    return 0;
+  }
+  if (zone === 'overheated') {
+    if (houseCount <= 1) return 0.4;
+    return 0;
+  }
+  return 1;
+}
+
+/** @deprecated */
+export function applyLtvWithCreditAndZone(
+  houseCount: number,
+  creditAdj: number,
+  regZone: RegZone,
+): number {
+  const base = applyLtvWithCredit(houseCount, creditAdj);
+  return Math.min(base, regZoneLtvCap(regZone, houseCount));
+}
+
 export const CREDIT_MAP = {
   우수: { adj: 0.05, rate: 0.04, label: '우수' },
   보통: { adj: 0, rate: 0.045, label: '보통' },

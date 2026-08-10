@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { calcEntryMatch } from './entryMatch';
-import { acquisitionTaxRate } from './acquisitionTax';
-import { dsrLoanCapacity } from './dsr';
-import { applyLtvWithCredit, baseLTV } from './ltv';
+import {
+  acquisitionTaxRate,
+  firstTimeTaxDeduction,
+} from './acquisitionTax';
+import { dsrLoanCapacity, stressDsrPremium } from './dsr';
+import {
+  applyLtvWithCredit,
+  applyLtvWithPolicy,
+  baseLTV,
+  loanAmountCap,
+  ltvCap,
+} from './ltv';
+import { regionStatus } from '@/data/regulatedRegions';
 
 describe('baseLTV / applyLtvWithCredit', () => {
   it('주택수별 기준 LTV', () => {
@@ -17,50 +27,204 @@ describe('baseLTV / applyLtvWithCredit', () => {
   });
 });
 
+describe('ltvCap (2025.6.27 + 10.15)', () => {
+  it('수도권 1주택 이상 → 원칙 LTV 0', () => {
+    expect(ltvCap(true, 'none', 1, false, false, 0.5, false, false)).toBe(0);
+    expect(ltvCap(true, 'adjusted', 2, false, false, 0.4, false, false)).toBe(
+      0,
+    );
+  });
+
+  it('수도권 저가특례 → 금융권 LTV', () => {
+    expect(ltvCap(true, 'none', 1, true, false, 0.4, false, false)).toBe(0.4);
+    expect(ltvCap(true, 'none', 1, true, false, 0.5, false, false)).toBe(0.5);
+  });
+
+  it('처분조건부 → 규제 40% / 비규제 70%', () => {
+    expect(ltvCap(true, 'adjusted', 1, false, true, 0.5, false, false)).toBe(
+      0.4,
+    );
+    expect(ltvCap(true, 'none', 1, false, true, 0.5, false, false)).toBe(0.7);
+  });
+
+  it('지방 1주택 이상 → 상한 없음(1)', () => {
+    expect(ltvCap(false, 'none', 1, false, false, 0.5, false, false)).toBe(1);
+  });
+
+  it('무주택 규제지역 40%', () => {
+    expect(
+      ltvCap(true, 'overheated', 0, false, false, 0.5, false, false),
+    ).toBe(0.4);
+  });
+
+  it('생애최초 · 서민실수요자 우대', () => {
+    expect(ltvCap(true, 'adjusted', 0, false, false, 0.5, true, false)).toBe(
+      0.7,
+    );
+    expect(ltvCap(false, 'none', 0, false, false, 0.5, true, false)).toBe(0.8);
+    expect(ltvCap(true, 'adjusted', 0, false, false, 0.5, false, true)).toBe(
+      0.6,
+    );
+  });
+
+  it('정책 상한 0이면 클램프보다 우선', () => {
+    expect(
+      applyLtvWithPolicy(2, 0, true, 'none', false, false, 0.5, false, false),
+    ).toBe(0);
+  });
+});
+
+describe('loanAmountCap / firstTimeTaxDeduction / stressDsr', () => {
+  it('수도권 시가 구간별 캡', () => {
+    expect(loanAmountCap(true, 1_000_000_000)).toBe(600_000_000);
+    expect(loanAmountCap(true, 2_000_000_000)).toBe(400_000_000);
+    expect(loanAmountCap(true, 3_000_000_000)).toBe(200_000_000);
+    expect(loanAmountCap(false, 1_000_000_000)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('생애최초 취득세 감면 200만원 한도', () => {
+    expect(firstTimeTaxDeduction(true, 500_000_000, 5_000_000)).toBe(
+      2_000_000,
+    );
+    expect(firstTimeTaxDeduction(true, 500_000_000, 1_000_000)).toBe(
+      1_000_000,
+    );
+    expect(firstTimeTaxDeduction(true, 1_300_000_000, 5_000_000)).toBe(0);
+    expect(firstTimeTaxDeduction(false, 500_000_000, 5_000_000)).toBe(0);
+  });
+
+  it('스트레스 DSR 지역 분기', () => {
+    expect(stressDsrPremium(true)).toBe(0.03);
+    expect(stressDsrPremium(false)).toBe(0.015);
+  });
+});
+
 describe('acquisitionTaxRate', () => {
   it('6억 이하 1%', () => {
-    expect(acquisitionTaxRate(210_000_000, 0)).toBeCloseTo(0.01);
+    expect(acquisitionTaxRate(210_000_000, 0, 'none')).toBeCloseTo(0.01);
   });
 
-  it('다주택 중과 8%', () => {
-    expect(acquisitionTaxRate(500_000_000, 2)).toBe(0.08);
+  it('매수 후 3주택: 비규제 8% / 규제 12%', () => {
+    expect(acquisitionTaxRate(500_000_000, 2, 'none')).toBe(0.08);
+    expect(acquisitionTaxRate(500_000_000, 2, 'adjusted')).toBe(0.12);
   });
 
-  it('6~9억 구간 선형', () => {
-    expect(acquisitionTaxRate(750_000_000, 0)).toBeCloseTo(0.02);
+  it('매수 후 4주택 이상: 전국 12%', () => {
+    expect(acquisitionTaxRate(500_000_000, 3, 'none')).toBe(0.12);
+    expect(acquisitionTaxRate(500_000_000, 3, 'adjusted')).toBe(0.12);
+  });
+
+  it('저가주택·처분조건부 특례면 중과 무시', () => {
+    expect(
+      acquisitionTaxRate(500_000_000, 2, 'overheated', true, false),
+    ).toBeCloseTo(0.01);
+    expect(
+      acquisitionTaxRate(500_000_000, 3, 'overheated', false, true),
+    ).toBeCloseTo(0.01);
+  });
+});
+
+describe('regionStatus', () => {
+  it('수도권 1주택 → blocked, 저가특례면 warn', () => {
+    expect(regionStatus(true, 1, false, false)).toBe('blocked');
+    expect(regionStatus(true, 1, true, false)).toBe('warn');
+  });
+
+  it('처분조건부면 전국 ok', () => {
+    expect(regionStatus(true, 2, false, true)).toBe('ok');
+    expect(regionStatus(true, 2, false, true)).toBe('ok');
+  });
+
+  it('지방 2주택 → warn, 저가특례면 ok', () => {
+    expect(regionStatus(false, 2, false, false)).toBe('warn');
+    expect(regionStatus(false, 2, true, false)).toBe('ok');
   });
 });
 
 describe('dsrLoanCapacity', () => {
-  it('연금현재가치 공식', () => {
-    const cap = dsrLoanCapacity(55_000_000, 0.5, 0.045, 10);
-    expect(cap).toBeGreaterThan(200_000_000);
-    expect(cap).toBeLessThan(400_000_000);
+  it('연금현재가치 공식 (심사만기 30년)', () => {
+    const cap = dsrLoanCapacity(55_000_000, 0.5, 0.045, 30);
+    expect(cap).toBeGreaterThan(400_000_000);
+    expect(cap).toBeLessThan(500_000_000);
   });
 });
 
 describe('calcEntryMatch', () => {
-  it('기본값에서 LTV 제약', () => {
+  const base = {
+    seedMoney: 80_000_000,
+    creditState: '보통' as const,
+    annualIncome: 55_000_000,
+    dsrRate: 0.5,
+    regZone: 'none' as const,
+    lowPriceException: false,
+    dispositionPlanned: false,
+  };
+
+  it('무주택 비규제 → LTV 제약', () => {
     const result = calcEntryMatch({
-      seedMoney: 80_000_000,
+      ...base,
       houseCount: 0,
-      creditState: '보통',
-      annualIncome: 55_000_000,
-      dsrRate: 0.5,
+      sudogwon: true,
     });
     expect(result.binding).toBe('LTV');
     expect(result.ltvApplied).toBe(0.7);
-    expect(result.bidCapacity).toBeGreaterThan(100_000_000);
   });
 
-  it('낮은 소득이면 DSR 제약', () => {
+  it('수도권 1주택 → LTV 0·대출금지 배지', () => {
     const result = calcEntryMatch({
-      seedMoney: 80_000_000,
-      houseCount: 0,
-      creditState: '보통',
-      annualIncome: 20_000_000,
-      dsrRate: 0.4,
+      ...base,
+      houseCount: 1,
+      sudogwon: true,
     });
-    expect(result.binding).toBe('DSR');
+    expect(result.ltvApplied).toBe(0);
+    expect(result.loanCapacity).toBe(0);
+    expect(result.loanBadge).toBe('수도권 다주택 대출금지');
+  });
+
+  it('수도권 저가특례 → 2금융 50% LTV', () => {
+    const result = calcEntryMatch({
+      ...base,
+      houseCount: 1,
+      sudogwon: true,
+      lowPriceException: true,
+    });
+    expect(result.ltvApplied).toBe(0.5);
+    expect(result.loanBadge).toBe('저가주택 특례 LTV 적용');
+    expect(result.taxRate).toBeCloseTo(0.01);
+  });
+
+  it('처분조건부 → 무주택자 기준 LTV·취득세', () => {
+    const result = calcEntryMatch({
+      ...base,
+      houseCount: 1,
+      sudogwon: true,
+      dispositionPlanned: true,
+      regZone: 'none',
+    });
+    expect(result.ltvApplied).toBe(0.6);
+    expect(result.loanBadge).toBe('처분조건부 · 무주택자 기준 적용');
+    expect(result.taxRate).toBeCloseTo(0.01);
+  });
+
+  it('생애최초 → 우대 LTV·취득세 감면', () => {
+    const result = calcEntryMatch({
+      ...base,
+      houseCount: 0,
+      sudogwon: true,
+      regZone: 'adjusted',
+      firstTimeBuyer: true,
+    });
+    expect(result.ltvApplied).toBe(0.7);
+    expect(result.loanBadge).toBe('생애최초 우대 LTV 적용');
+    expect(result.taxDeduction).toBeGreaterThan(0);
+  });
+
+  it('지방 다주택 → 미확정 참고치', () => {
+    const result = calcEntryMatch({
+      ...base,
+      houseCount: 1,
+      sudogwon: false,
+    });
+    expect(result.ltvUnverified).toBe(true);
   });
 });

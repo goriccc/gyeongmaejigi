@@ -10,6 +10,8 @@
   --forest-soft: #e6ece5;
   --seal: #8c2f26;
   --seal-soft: #f0e3e0;
+  --amber: #c46b1a;
+  --amber-soft: #f7ebdd;
   --slate: #6e6858;
   --line: rgba(20, 22, 31, 0.14);
   --line-soft: rgba(20, 22, 31, 0.08);
@@ -195,6 +197,48 @@ button {
   animation: fade 0.3s ease;
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.analysis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 48px 20px;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.analysis-loading-label {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.analysis-loading-inline {
+  margin: 0;
+  padding: 28px 16px;
+  border: none;
+  background: transparent;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 2.5px solid var(--line);
+  border-top-color: var(--brass-deep);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
 @keyframes fade {
   from {
     opacity: 0;
@@ -265,10 +309,64 @@ h1.page-title em {
   line-height: 1.7;
 }
 
+/* 기본정보: 좌우 페어 + 라벨·셀렉터 라운드 박스 */
 .grid2 {
+  display: flex;
+  flex-direction: column;
+  gap: 36px; /* 항목(행) 간 간격 — 구분 명확히 */
+}
+
+.grid2-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 28px 24px;
+  column-gap: 24px;
+  align-items: start;
+}
+
+.grid2-row .field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.grid2-row .field-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px 8px;
+  background: var(--card);
+  transition: border-color 0.15s ease;
+}
+
+.grid2-row .field-box:focus-within {
+  border-color: var(--brass);
+}
+
+/* 기본정보 항목명: 설명문과 구분되도록 볼드 + 선행 마크 */
+.grid2-row .field-box > label {
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  line-height: 1.55;
+  margin-bottom: 0; /* 라벨 ↔ 셀렉터 간격 최소화 */
+}
+
+.grid2-row .field-box > label::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 1px;
+  background: var(--brass-deep);
+  vertical-align: 0.15em;
+  flex-shrink: 0;
+}
+
+.grid2-row .field-box > label > span:not(.range-val) {
+  font-weight: 400;
+  color: var(--slate);
 }
 
 label {
@@ -294,6 +392,11 @@ textarea {
   background: transparent;
   color: var(--ink);
   border-radius: 0;
+}
+
+/* 네이티브 ▼ 화살표와 긴 옵션 문구가 겹치지 않도록 우측 여백 */
+select {
+  padding-right: 28px;
 }
 
 textarea {
@@ -326,6 +429,12 @@ textarea:focus {
   color: var(--slate);
   margin: 7px 0 0;
   line-height: 1.6;
+}
+
+.field-hint:empty {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
 }
 
 .btn {
@@ -418,6 +527,13 @@ textarea:focus {
   font-family: var(--mono);
   letter-spacing: 0.02em;
   border: 1px solid transparent;
+}
+
+.badge.badge-pill {
+  border-radius: 999px;
+  padding: 3px 10px;
+  flex: none;
+  white-space: nowrap;
 }
 
 .badge-ok {
@@ -705,9 +821,39 @@ textarea:focus {
   border-bottom: none;
 }
 
+.risk-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.risk-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .risk-name {
   font-family: var(--serif);
   font-size: 14.5px;
+  min-width: 0;
+}
+
+.risk-name::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 1px;
+  background: var(--brass-deep);
+  vertical-align: 0.15em;
+  flex-shrink: 0;
+}
+
+.risk-side {
+  text-align: right;
+  flex: none;
 }
 
 .risk-amt {
@@ -726,6 +872,22 @@ textarea:focus {
   line-height: 1.6;
 }
 
+.risk-note strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.risk-note .risk-note-key,
+.risk-note strong.risk-note-key {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.risk-note .risk-note-warn {
+  color: var(--amber);
+  font-weight: 600;
+}
+
 .diff-tag {
   font-family: var(--mono);
   font-size: 10px;
@@ -733,6 +895,14 @@ textarea:focus {
   display: block;
   margin-top: 5px;
   font-style: italic;
+}
+
+.diff-tag-ok {
+  color: var(--forest);
+}
+
+.diff-tag-warn {
+  color: var(--seal);
 }
 
 .checklist-item {
@@ -985,6 +1155,258 @@ table.loan-table td {
   line-height: 1.6;
 }
 
+/* ---------- Module A: 전국 규제지역 지도 ---------- */
+.region-map-wrap {
+  margin: 8px 0 18px;
+}
+
+.region-map-flex {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.region-map-flex .region-map-wrap {
+  margin: 0;
+}
+
+.map-summary {
+  flex: 1;
+  min-width: 210px;
+  border-left: 1px solid var(--line);
+  padding-left: 22px;
+}
+
+.map-summary .ms-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 10px;
+}
+
+.map-summary .ms-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px dotted var(--line);
+  font-size: 12.5px;
+}
+
+.map-summary .ms-row:last-child {
+  border-bottom: none;
+}
+
+.map-summary .ms-row span:first-child {
+  color: var(--slate);
+}
+
+.map-summary .ms-row span:last-child {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.map-summary .ms-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 10px 0;
+}
+
+@media (max-width: 520px) {
+  .map-summary {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+    padding-top: 16px;
+    min-width: 100%;
+  }
+}
+
+.region-map {
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  grid-template-rows: repeat(8, 46px);
+  gap: 5px;
+  margin: 14px 0;
+}
+
+.region-tile {
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-family: var(--mono);
+  border: 1px solid var(--line);
+  text-align: center;
+  line-height: 1.3;
+  padding: 2px;
+  gap: 2px;
+}
+
+.region-tile .rt-name {
+  font-weight: 700;
+}
+
+.region-tile .rt-threshold {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.region-tile.ok {
+  background: var(--forest);
+  color: #fff;
+  border-color: var(--forest);
+}
+
+.region-tile.warn {
+  background: rgba(176, 138, 69, 0.32);
+  color: var(--brass-deep);
+  border-color: rgba(176, 138, 69, 0.6);
+}
+
+.region-tile.blocked {
+  background: rgba(140, 47, 38, 0.28);
+  color: var(--seal);
+  border-color: rgba(140, 47, 38, 0.55);
+}
+
+.region-tile.mixed {
+  color: var(--ink);
+  border-color: var(--brass-deep);
+}
+
+.verdict-banner {
+  padding: 18px 20px;
+  border-radius: 6px;
+  margin: 14px 0 20px;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.vb-avatar {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+}
+
+.vb-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.verdict-banner .vb-status {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.verdict-banner .vb-detail {
+  font-size: 12.5px;
+  color: var(--slate);
+  line-height: 1.7;
+}
+
+.verdict-banner.vb-ok {
+  background: var(--forest-soft);
+  border-color: rgba(46, 75, 61, 0.3);
+}
+
+.verdict-banner.vb-ok .vb-status {
+  color: var(--forest);
+}
+
+.verdict-banner.vb-ok .vb-avatar {
+  border-color: var(--forest);
+}
+
+.verdict-banner.vb-blocked {
+  background: var(--seal-soft);
+  border-color: rgba(140, 47, 38, 0.3);
+}
+
+.verdict-banner.vb-blocked .vb-status {
+  color: var(--seal);
+}
+
+.verdict-banner.vb-blocked .vb-avatar {
+  border-color: var(--seal);
+}
+
+.verdict-banner.vb-warn {
+  background: var(--brass-soft);
+  border-color: rgba(176, 138, 69, 0.4);
+}
+
+.verdict-banner.vb-warn .vb-status {
+  color: var(--brass-deep);
+}
+
+.verdict-banner.vb-warn .vb-avatar {
+  border-color: var(--brass-deep);
+}
+
+.rule-panel {
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.rule-panel .rp-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--slate);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.region-legend {
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  color: var(--slate);
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.region-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.region-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.region-list {
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+
+.region-list b {
+  font-family: var(--serif);
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .topnav {
     padding: 18px 20px;
@@ -1015,7 +1437,15 @@ table.loan-table td {
     border-left: none;
   }
 
-  .grid2,
+  .grid2 {
+    gap: 30px;
+  }
+
+  .grid2-row {
+    grid-template-columns: 1fr;
+    row-gap: 22px;
+  }
+
   .calc-layout {
     grid-template-columns: 1fr;
     gap: 22px;

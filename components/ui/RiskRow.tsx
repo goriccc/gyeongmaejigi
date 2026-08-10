@@ -1,5 +1,8 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import { Badge, type BadgeTone } from './Badge';
+import { RichNote } from './RichNote';
 
 type Props = {
   name: ReactNode;
@@ -8,6 +11,8 @@ type Props = {
   badge?: ReactNode;
   badgeTone?: BadgeTone;
   diffTag?: ReactNode;
+  /** diff-tag 색: ok=초록, warn=붉은 계열 */
+  diffTone?: 'ok' | 'warn';
 };
 
 export function RiskRow({
@@ -17,18 +22,36 @@ export function RiskRow({
   badge,
   badgeTone = 'neutral',
   diffTag,
+  diffTone = 'warn',
 }: Props) {
+  let noteNode: ReactNode = null;
+  if (typeof note === 'string' && note.length > 0) {
+    noteNode = <RichNote text={note} />;
+  } else if (note != null && note !== false) {
+    noteNode = note;
+  }
+
   return (
     <div className="risk-row">
-      <div>
-        <div className="risk-name">{name}</div>
-        {note ? <div className="risk-note">{note}</div> : null}
-        {diffTag ? <span className="diff-tag">{diffTag}</span> : null}
+      <div className="risk-main">
+        <div className="risk-label-row">
+          <div className="risk-name">{name}</div>
+          {badge != null ? (
+            <Badge tone={badgeTone} className="badge-pill">
+              {badge}
+            </Badge>
+          ) : null}
+        </div>
+        {noteNode ? <div className="risk-note">{noteNode}</div> : null}
+        {diffTag ? (
+          <span className={`diff-tag diff-tag-${diffTone}`}>{diffTag}</span>
+        ) : null}
       </div>
-      <div style={{ textAlign: 'right' }}>
-        {amount != null ? <span className="risk-amt">{amount}</span> : null}
-        {badge != null ? <Badge tone={badgeTone}>{badge}</Badge> : null}
-      </div>
+      {amount != null ? (
+        <div className="risk-side">
+          <span className="risk-amt">{amount}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
