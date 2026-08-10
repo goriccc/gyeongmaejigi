@@ -45,13 +45,49 @@ const plexMono = IBM_Plex_Mono({
   display: 'swap',
 });
 
+/** 커스텀 도메인 DNS 미연결 시 vercel.app 사용 (og:image 절대 URL) */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'https://gyeongmaejigi.vercel.app');
+
+const ogImageUrl = `${siteUrl}/og.png`;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: '경매지기 — 입찰 전, 한 번 더 확인하세요',
     template: '%s · 경매지기',
   },
   description:
     '시드머니 확인부터 권리분석 셀프체크, 임장, 입찰가 역산, 명도 코칭까지. 경매 한 건의 전 과정을 잇는 이중확인 포털.',
+  openGraph: {
+    title: '경매지기 — 입찰 전, 한 번 더 확인하세요',
+    description:
+      '판단은 본인 몫, 놓친 부분은 짚어드립니다. 경매 전 과정 이중확인 도구.',
+    url: siteUrl,
+    siteName: '경매지기',
+    locale: 'ko_KR',
+    type: 'website',
+    images: [
+      {
+        url: ogImageUrl,
+        secureUrl: ogImageUrl,
+        width: 1199,
+        height: 630,
+        alt: '경매지기 — 입찰 전, 한 번 더 확인하세요',
+        type: 'image/png',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: '경매지기 — 입찰 전, 한 번 더 확인하세요',
+    description:
+      '판단은 본인 몫, 놓친 부분은 짚어드립니다. 경매 전 과정 이중확인 도구.',
+    images: [ogImageUrl],
+  },
   robots: {
     index: true,
     follow: true,
