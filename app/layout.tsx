@@ -52,12 +52,15 @@ const siteUrl =
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : 'https://gyeongmaejigi.vercel.app');
 
+const ogImageUrl = `${siteUrl}/og.jpg`;
+
 const ogImage = {
-  url: '/og.png',
+  url: ogImageUrl,
+  secureUrl: ogImageUrl,
   width: 1200,
-  height: 678,
+  height: 630,
   alt: '경매지기 — 입찰 전, 한 번 더 확인하세요',
-  type: 'image/png',
+  type: 'image/jpeg',
 } as const;
 
 export const metadata: Metadata = {
@@ -83,7 +86,7 @@ export const metadata: Metadata = {
     title: '경매지기 — 입찰 전, 한 번 더 확인하세요',
     description:
       '판단은 본인 몫, 놓친 부분은 짚어드립니다. 경매 전 과정 이중확인 도구.',
-    images: ['/og.png'],
+    images: [ogImageUrl],
   },
   robots: {
     index: true,
