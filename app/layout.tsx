@@ -45,16 +45,23 @@ const plexMono = IBM_Plex_Mono({
   display: 'swap',
 });
 
+/** 커스텀 도메인 DNS가 없으면 vercel.app로 OG 절대 URL이 깨집니다. */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'https://gyeongmaejigi.vercel.app');
+
 const ogImage = {
   url: '/og.png',
   width: 1200,
-  height: 630,
+  height: 678,
   alt: '경매지기 — 입찰 전, 한 번 더 확인하세요',
   type: 'image/png',
 } as const;
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://gyeongmaejigi.com'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: '경매지기 — 입찰 전, 한 번 더 확인하세요',
     template: '%s · 경매지기',
@@ -65,7 +72,7 @@ export const metadata: Metadata = {
     title: '경매지기 — 입찰 전, 한 번 더 확인하세요',
     description:
       '판단은 본인 몫, 놓친 부분은 짚어드립니다. 경매 전 과정 이중확인 도구.',
-    url: 'https://gyeongmaejigi.com',
+    url: siteUrl,
     siteName: '경매지기',
     locale: 'ko_KR',
     type: 'website',
