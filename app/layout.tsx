@@ -46,11 +46,11 @@ const plexMono = IBM_Plex_Mono({
 });
 
 const ogImage = {
-  url: '/og.webp',
+  url: '/og.png',
   width: 1200,
   height: 630,
   alt: '경매지기 — 입찰 전, 한 번 더 확인하세요',
-  type: 'image/webp',
+  type: 'image/png',
 } as const;
 
 export const metadata: Metadata = {
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     title: '경매지기 — 입찰 전, 한 번 더 확인하세요',
     description:
       '판단은 본인 몫, 놓친 부분은 짚어드립니다. 경매 전 과정 이중확인 도구.',
-    images: ['/og.webp'],
+    images: ['/og.png'],
   },
   robots: {
     index: true,
