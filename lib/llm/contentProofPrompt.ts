@@ -1,3 +1,5 @@
+import { parseLlmJson } from './parseLlmJson';
+
 export const CONTENT_PROOF_SYSTEM_PROMPT = `당신은 경매지기의 내용증명 초안 작성 보조입니다. 낙찰자와 점유자 사이의 대화 맥락을 바탕으로, 발송 전 검토용 내용증명 초안을 작성합니다.
 
 # 역할과 한계
@@ -11,6 +13,11 @@ export const CONTENT_PROOF_SYSTEM_PROMPT = `당신은 경매지기의 내용증�
 # 출력 형식
 
 다른 설명 없이 JSON만 출력하세요. 마크다운·코드펜스 금지.
+
+JSON 규칙 (필수):
+- body 등 문자열 값 안 줄바꿈은 반드시 \\n으로 이스케이프 (실제 줄바꿈 금지)
+- 문자열 안 큰따옴표는 \\"로 이스케이프
+- trailing comma 금지
 
 {
   "title": "경매 낙찰 부동산 인도 협조 요청의 건",
@@ -38,25 +45,14 @@ ${conversation.trim()}
 위 맥락을 반영해 내용증명 초안 JSON만 출력하세요.`;
 }
 
-export function parseContentProofJson(raw: string): ContentProofDraft {
-  const trimmed = raw.trim();
-  let jsonText = trimmed;
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) {
-    jsonText = fenced[1].trim();
-  } else {
-    const start = trimmed.indexOf('{');
-    const end = trimmed.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      jsonText = trimmed.slice(start, end + 1);
-    }
-  }
+type ContentProofJsonPayload = {
+  title?: string;
+  body?: string;
+  caution?: string;
+};
 
-  const data = JSON.parse(jsonText) as {
-    title?: string;
-    body?: string;
-    caution?: string;
-  };
+export function parseContentProofJson(raw: string): ContentProofDraft {
+  const data = parseLlmJson<ContentProofJsonPayload>(raw);
 
   const title = data.title?.trim();
   const body = data.body?.trim();

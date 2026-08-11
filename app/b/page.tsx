@@ -89,11 +89,8 @@ export default function RightsAnalysisPage() {
       const res = await fetch('/api/rights-analysis', {
         method: 'POST',
         body: form,
-        signal: AbortSignal.timeout(100_000),
+        signal: AbortSignal.timeout(120_000),
       });
-      if (!res.ok && !res.body) {
-        throw new Error('분석 요청에 실패했습니다.');
-      }
 
       let latest: RightsAnalysisCompare = {
         analyzedAt: new Date().toISOString(),

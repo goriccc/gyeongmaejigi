@@ -1,24 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Section } from '@/components/ui/Section';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EvictionConversationPanel } from '@/components/eviction/EvictionConversationPanel';
 import { EvictionModelBlock } from '@/components/eviction/EvictionModelBlock';
+import { Section } from '@/components/ui/Section';
 import { useCases } from '@/lib/hooks/useCases';
+import {
+  appendToConversationLog,
+  buildFullConversation,
+  trimConversationForApi,
+} from '@/lib/eviction/conversationLog';
 import { readJsonSafe } from '@/lib/http/readJsonSafe';
 import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
 import { ko } from '@/messages/ko';
 import { normalizeCaseTrack } from '@/lib/caseUtils';
-import type { EvictionCoachCompare, EvictionModelResult } from '@/types/case';
+import type {
+  EvictionCoachCompare,
+  EvictionConversationLog,
+  EvictionModelResult,
+} from '@/types/case';
 
 type EvictionStreamEvent =
   | { type: 'result'; result: EvictionModelResult }
   | { type: 'done'; analyzedAt: string }
   | { type: 'error'; error: string };
-
-const PASTE_PLACEHOLDER = `예)
-점유자: 안녕하세요, 낙찰받으신 분 맞으시죠. 저 이사 갈 데를 아직 못 구했는데... 시간을 좀 더 주실 수 있나요?
-나: 네 맞습니다. 상황은 이해합니다만 잔금일이 정해져 있어서요. 이사 계획을 좀 더 구체적으로 말씀해주실 수 있을까요?
-점유자: 한 달 정도만 더 여유를 주시면 안될까요? 저도 이사 갈 형편이 넉넉지 않아서 걱정이 많아요.`;
 
 type ContentProofModelResult = {
   model: 'claude-sonnet-5';
@@ -138,12 +143,12 @@ function ContentProofBlock({
 
 export default function EvictionCoachPage() {
   const { activeCase, updateCase } = useCases();
-  const [paste, setPaste] = useState('');
+  const [conversationLog, setConversationLog] =
+    useState<EvictionConversationLog | null>(null);
+  const [newPaste, setNewPaste] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [compare, setCompare] = useState<EvictionCoachCompare | null>(
-    activeCase?.evictionCoach ?? null,
-  );
+  const [compare, setCompare] = useState<EvictionCoachCompare | null>(null);
   const [certOpen, setCertOpen] = useState(false);
   const [certLoading, setCertLoading] = useState(false);
   const [certError, setCertError] = useState('');
@@ -151,11 +156,28 @@ export default function EvictionCoachPage() {
     null,
   );
 
+  const fullConversation = useMemo(
+    () => buildFullConversation(conversationLog),
+    [conversationLog],
+  );
+
   useEffect(() => {
-    if (activeCase?.evictionCoach) {
-      setCompare(activeCase.evictionCoach);
-    }
+    setConversationLog(activeCase?.evictionConversationLog ?? null);
+    setNewPaste('');
+    setCompare(activeCase?.evictionCoach ?? null);
+    setError('');
+    setCertCompare(null);
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const persistLog = useCallback(
+    (log: EvictionConversationLog) => {
+      setConversationLog(log);
+      if (activeCase) {
+        updateCase(activeCase.id, { evictionConversationLog: log });
+      }
+    },
+    [activeCase, updateCase],
+  );
 
   function persistEviction(next: EvictionCoachCompare) {
     if (!activeCase) return;
@@ -173,7 +195,8 @@ export default function EvictionCoachPage() {
     }
   }
 
-  async function analyze() {
+  async function runAnalysis(conversation: string) {
+    const payload = trimConversationForApi(conversation);
     setLoading(true);
     setError('');
     setCompare({ analyzedAt: new Date().toISOString() });
@@ -182,12 +205,9 @@ export default function EvictionCoachPage() {
       const res = await fetch('/api/eviction-coach', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conversation: paste }),
-        signal: AbortSignal.timeout(100_000),
+        body: JSON.stringify({ conversation: payload }),
+        signal: AbortSignal.timeout(120_000),
       });
-      if (!res.ok && !res.body) {
-        throw new Error('분석 요청에 실패했습니다.');
-      }
 
       let latest: EvictionCoachCompare = {
         analyzedAt: new Date().toISOString(),
@@ -218,10 +238,50 @@ export default function EvictionCoachPage() {
     }
   }
 
+  function handleAppend() {
+    const { log, merged } = appendToConversationLog(conversationLog, newPaste);
+    if (merged === 'skip') return;
+    persistLog(log);
+    setNewPaste('');
+  }
+
+  function handleAnalyze() {
+    let log = conversationLog;
+    if (newPaste.trim()) {
+      const result = appendToConversationLog(log, newPaste);
+      log = result.log;
+      if (result.merged !== 'skip') {
+        persistLog(log);
+        setNewPaste('');
+      }
+    }
+    const conversation = buildFullConversation(log);
+    if (!conversation.trim()) return;
+    void runAnalysis(conversation);
+  }
+
+  function handleClearLog() {
+    if (
+      !window.confirm(
+        '저장된 대화 기록을 모두 삭제할까요? 분석 결과는 유지됩니다.',
+      )
+    ) {
+      return;
+    }
+    persistLog({ entries: [], updatedAt: new Date().toISOString() });
+    setNewPaste('');
+  }
+
   async function openContentProof(force = false) {
     setCertOpen(true);
     setCertError('');
     if (certCompare && !force) return;
+
+    const conversation = trimConversationForApi(fullConversation);
+    if (!conversation.trim()) {
+      setCertError('분석할 대화 기록이 없습니다.');
+      return;
+    }
 
     setCertCompare(null);
     setCertLoading(true);
@@ -229,8 +289,8 @@ export default function EvictionCoachPage() {
       const res = await fetch('/api/content-proof', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conversation: paste }),
-        signal: AbortSignal.timeout(100_000),
+        body: JSON.stringify({ conversation }),
+        signal: AbortSignal.timeout(120_000),
       });
       const data = await readJsonSafe<
         ContentProofCompare & {
@@ -313,48 +373,35 @@ export default function EvictionCoachPage() {
     <>
       <div className="chapter-mark">제6장 · 명도 코칭</div>
       <h1 className="page-title">
-        대화를 붙여넣으면,
+        대화를 쌓아가며,
         <br />
         <em>다음 회신</em>을 제안합니다.
       </h1>
       <p className="page-sub">
-        점유자와 나눈 문자·카카오톡 대화를 그대로 복사해 붙여넣으세요. AI가
-        점유자 심리 분석과 회신 초안을 제안합니다. 법적 자문이 아닌 협상 방향
-        안내입니다.
+        점유자와 나눈 문자·카카오톡을 붙여넣으면 사건별로 대화가 누적됩니다.
+        명도가 끝날 때까지 새 메시지를 추가하고 재분석하면 전체 흐름을 기준으로
+        심리 분석과 회신 초안을 받을 수 있습니다.
       </p>
 
       {renderEvictionBanner()}
 
-      <Section
-        title="대화 내용 붙여넣기"
-        note="문자·카카오톡에서 복사한 대화를 그대로 붙여넣으면 됩니다. 화자 구분은 자동으로 인식합니다."
-      >
-        <div className="field">
-          <textarea
-            id="pasteInput"
-            style={{ minHeight: 150 }}
-            value={paste}
-            onChange={(e) => setPaste(e.target.value)}
-            placeholder={PASTE_PLACEHOLDER}
-          />
-        </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void analyze()}
-          disabled={loading || !paste.trim()}
-        >
-          {loading ? 'AI 분석 중…' : '대화 분석하기'}
-        </button>
-        {error ? (
-          <p className="notice-inline" style={{ color: 'var(--seal)' }}>
-            {error}
-          </p>
-        ) : null}
-        <p className="field-hint">
-          붙여넣은 대화 원문은 저장되지 않습니다.
+      <EvictionConversationPanel
+        log={conversationLog}
+        newPaste={newPaste}
+        onNewPasteChange={setNewPaste}
+        onAppend={handleAppend}
+        onAnalyze={handleAnalyze}
+        onClearLog={handleClearLog}
+        loading={loading}
+        lastAnalyzedAt={compare?.analyzedAt}
+        resistLevel={compare?.claude?.resistLevel}
+      />
+
+      {error ? (
+        <p className="notice-inline" style={{ color: 'var(--seal)' }}>
+          {error}
         </p>
-      </Section>
+      ) : null}
 
       {loading || compare?.claude ? (
         <>
@@ -387,7 +434,7 @@ export default function EvictionCoachPage() {
               type="button"
               className="btn btn-outline"
               onClick={() => void openContentProof()}
-              disabled={!paste.trim()}
+              disabled={!fullConversation.trim()}
             >
               내용증명 초안 보기
             </button>

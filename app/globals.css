@@ -2038,6 +2038,96 @@ table.loan-table td {
   padding-top: 22px;
 }
 
+.eviction-paste-input {
+  min-height: 150px;
+  width: 100%;
+}
+
+.eviction-paste-actions,
+.eviction-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.eviction-paste-actions {
+  margin-top: 4px;
+}
+
+.eviction-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.eviction-log-meta-item {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--slate);
+}
+
+.eviction-log-timeline {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eviction-log-timeline-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12.5px;
+}
+
+.eviction-log-timeline-num {
+  font-family: var(--mono);
+  color: var(--brass-deep);
+  font-weight: 600;
+}
+
+.eviction-log-timeline-date {
+  font-family: var(--mono);
+  color: var(--slate);
+  white-space: nowrap;
+}
+
+.eviction-log-timeline-preview {
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eviction-log-body {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.eviction-log-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-height: 280px;
+  overflow: auto;
+}
+
+.eviction-log-toggle {
+  margin-top: 10px;
+}
+
 .rights-expert-guide {
   margin-bottom: 28px;
   padding: 20px 22px;

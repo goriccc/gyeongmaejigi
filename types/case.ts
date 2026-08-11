@@ -74,6 +74,18 @@ export type EvictionCoachCompare = {
   analyzedAt: string;
 };
 
+/** 명도 대화 누적 기록 (사건·기기 localStorage) */
+export type EvictionConversationEntry = {
+  id: string;
+  text: string;
+  addedAt: string;
+};
+
+export type EvictionConversationLog = {
+  entries: EvictionConversationEntry[];
+  updatedAt: string;
+};
+
 export type LoanOffer = {
   id: string;
   name: string;
@@ -160,8 +172,10 @@ export type CaseFile = {
     officialPrice?: number;
   };
   loanOffers?: LoanOffer[];
-  /** 모듈 E LLM 결과 요약 (대화 원문은 저장하지 않음) */
+  /** 모듈 E LLM 결과 */
   evictionCoach?: EvictionCoachCompare;
+  /** 명도 대화 원문 누적 (사건별 localStorage) */
+  evictionConversationLog?: EvictionConversationLog;
   evictionSummary?: {
     resistLevel: 'low' | 'mid' | 'high';
     nextActions: string[];

@@ -1,3 +1,5 @@
+import { parseLlmJson } from './parseLlmJson';
+
 export const EVICTION_SYSTEM_PROMPT = `당신은 경매지기의 명도 코칭 어시스턴트입니다. 낙찰자와 점유자(전 소유자 또는 임차인) 사이에 오간 문자·카카오톡 대화를 분석해, 상황을 파악하고 다음 대응을 코칭합니다.
 
 분석할 때 당신은 **대화·협상 심리에 밝은 심리학자**처럼 사고하세요. 다만 임상 진단명을 붙이거나 병리화하지 마세요.
@@ -17,7 +19,7 @@ export const EVICTION_SYSTEM_PROMPT = `당신은 경매지기의 명도 코칭 �
 
 # 입력
 
-낙찰자가 점유자와 나눈 대화 원문이 제공됩니다. 화자는 보통 "점유자:", "나:" 같은 접두어로 구분되어 있습니다. 접두어가 없거나 불명확하면 문맥으로 추정하되, 확신이 낮으면 situationSummary에 "화자 구분이 불명확한 부분이 있어 참고용으로만 활용하세요"라고 명시하세요.
+낙찰자가 점유자와 나눈 대화 원문이 제공됩니다. 여러 번에 나눠 붙여넣은 기록은 \`─── [날짜 추가] ───\` 구분선으로 이어져 있으며, **시간순 전체 흐름**을 기준으로 분석하세요. 초기 메시지와 최근 태도 변화가 모두 반영되어야 합니다. 화자는 보통 "점유자:", "나:" 같은 접두어로 구분되어 있습니다. 접두어가 없거나 불명확하면 문맥으로 추정하되, 확신이 낮으면 situationSummary에 "화자 구분이 불명확한 부분이 있어 참고용으로만 활용하세요"라고 명시하세요.
 
 # 위기 상황 우선 처리 (가장 먼저 확인)
 
@@ -51,6 +53,11 @@ export const EVICTION_SYSTEM_PROMPT = `당신은 경매지기의 명도 코칭 �
 # 출력 형식
 
 다른 설명 없이 아래 JSON 스키마로만 응답하세요. 한국어로 작성하세요. 마크다운·코드펜스 금지.
+
+JSON 규칙 (필수):
+- 문자열 값 안 줄바꿈은 반드시 \\n으로 이스케이프 (실제 줄바꿈 금지)
+- 문자열 안 큰따옴표는 \\"로 이스케이프
+- 배열·객체 마지막 요소 뒤 trailing comma 금지
 
 {
   "crisisFlag": false,
@@ -92,10 +99,10 @@ export type EvictionLlmResult = {
 };
 
 export function buildEvictionUserPrompt(conversation: string): string {
-  return `## 붙여넣은 대화
+  return `## 누적 대화 기록
 ${conversation.trim()}
 
-위 대화를 분석해 지정된 JSON만 출력하세요. situationSummary에는 점유자 심리 분석과 그에 따른 대응 방향을 반드시 포함하세요.`;
+위 대화 전체 흐름(초기부터 최근까지)을 분석해 지정된 JSON만 출력하세요. situationSummary에는 점유자 심리 변화와 그에 따른 대응 방향을 반드시 포함하세요.`;
 }
 
 function pickDraft(
@@ -107,32 +114,20 @@ function pickDraft(
   return '';
 }
 
+type EvictionJsonPayload = {
+  crisisFlag?: boolean;
+  crisisNote?: string | null;
+  resistLevel?: string;
+  situationSummary?: string;
+  psychologySummary?: string;
+  replyDrafts?: Array<{ tone?: string; message?: string }>;
+  replies?: { calm?: string; firm?: string };
+  nextActions?: string[];
+  speakerClarity?: string;
+};
+
 export function parseEvictionJson(raw: string): EvictionLlmResult {
-  const trimmed = raw.trim();
-  let jsonText = trimmed;
-
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) {
-    jsonText = fenced[1].trim();
-  } else {
-    const start = trimmed.indexOf('{');
-    const end = trimmed.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      jsonText = trimmed.slice(start, end + 1);
-    }
-  }
-
-  const data = JSON.parse(jsonText) as {
-    crisisFlag?: boolean;
-    crisisNote?: string | null;
-    resistLevel?: string;
-    situationSummary?: string;
-    psychologySummary?: string;
-    replyDrafts?: Array<{ tone?: string; message?: string }>;
-    replies?: { calm?: string; firm?: string };
-    nextActions?: string[];
-    speakerClarity?: string;
-  };
+  const data = parseLlmJson<EvictionJsonPayload>(raw);
 
   const level = data.resistLevel;
   if (level !== 'low' && level !== 'mid' && level !== 'high') {
