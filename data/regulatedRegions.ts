@@ -4,13 +4,13 @@
  * 출처: 국토교통부 고시 (2026.7.1 화성시 동탄구·용인시 기흥구·구리시 추가 지정 반영)
  *
  * LTV(대출가능여부)는 2025.6.27 부동산대책 기준: 수도권(서울·경기·인천) 전역.
- * 취득세 중과(8%/12%)는 이와 별개로 규제구분(조정대상/투기과열) 매트릭스 적용.
+ * 취득세 중과(8%/12%)는 이와 별개로 규제구분(규제지역) 매트릭스 적용.
  */
 
 export const REGULATED_AS_OF = '2026-08-08';
 
 /**
- * 저가주택 특례 기준(1억/2억)이자 LTV 전면금지 기준(6.27대책) — 동일 범위
+ * 저가주택 특례 공시가격 기준(수도권 1억 / 지방 2억) — 취득세 계산·지도 표시용
  */
 export const SUDOGWON = ['서울', '경기', '인천'];
 
@@ -49,8 +49,8 @@ export function lowPriceThreshold(region: string): '1억' | '2억' {
  * 매수 후 주택수 기준 상태 판정 (2025.6.27 대책 + 취득세 중과)
  * - houseCount=0: 항상 ok
  * - dispositionPlanned: 무주택자와 동일 → ok
- * - houseCount=1: 지방 ok / 수도권 blocked(저가특례 시 warn)
- * - houseCount>=2 (2주택·3주택 이상): 수도권 blocked(저가특례 시 warn) / 지방 warn(저가특례 시 ok)
+ * - houseCount=1: 지방 ok / 수도권 blocked
+ * - houseCount>=2: 수도권 blocked / 지방 warn(저가특례 시 ok — 취득세 중과 해소)
  */
 export function regionStatus(
   isSudogwon: boolean,
@@ -62,11 +62,44 @@ export function regionStatus(
   if (dispositionPlanned) return 'ok';
   if (houseCount === 1) {
     if (!isSudogwon) return 'ok';
-    return lowPriceException ? 'warn' : 'blocked';
+    return 'blocked';
   }
   // houseCount 2·3
-  if (isSudogwon) return lowPriceException ? 'warn' : 'blocked';
+  if (isSudogwon) return 'blocked';
   return lowPriceException ? 'ok' : 'warn';
+}
+
+/** 설정 기준 권역별 투자(대출) 가능 여부 — 2025.6.27 대책 표 */
+export function regionInvestPossible(
+  isSudogwon: boolean,
+  houseCount: 0 | 1 | 2 | 3,
+  dispositionPlanned = false,
+): boolean {
+  if (houseCount === 0) return true;
+  if (houseCount === 1 && dispositionPlanned) return true;
+  if (!isSudogwon) return true;
+  return false;
+}
+
+export function regionInvestTitleLabels(
+  houseCount: 0 | 1 | 2 | 3,
+  dispositionPlanned = false,
+  lowPriceException = false,
+): { sudogwon: string; regional: string } {
+  const sudogwon = regionInvestPossible(true, houseCount, dispositionPlanned)
+    ? '가능'
+    : '불가';
+
+  if (!regionInvestPossible(false, houseCount, dispositionPlanned)) {
+    return { sudogwon, regional: '불가' };
+  }
+  if (houseCount === 2 && !lowPriceException) {
+    return { sudogwon, regional: '가능 (세금 8%)' };
+  }
+  if (houseCount >= 3 && !lowPriceException) {
+    return { sudogwon, regional: '가능 (세금 12%)' };
+  }
+  return { sudogwon, regional: '가능' };
 }
 
 /** 스키매틱 타일 배치 (실제 지리 좌표 아님) */

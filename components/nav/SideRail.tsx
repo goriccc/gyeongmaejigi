@@ -12,7 +12,8 @@ const ITEMS = [
   { href: '/b', chapter: 'B' as const, num: '제2장', name: ko.rail.ch2 },
   { href: '/c', chapter: 'C' as const, num: '제3장', name: ko.rail.ch3 },
   { href: '/d', chapter: 'D' as const, num: '제4장', name: ko.rail.ch4 },
-  { href: '/e', chapter: 'E' as const, num: '제5장', name: ko.rail.ch5 },
+  { href: '/f', chapter: 'F' as const, num: '제5장', name: ko.rail.ch5 },
+  { href: '/e', chapter: 'E' as const, num: '제6장', name: ko.rail.ch6 },
 ];
 
 export function SideRail() {

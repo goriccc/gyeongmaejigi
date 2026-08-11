@@ -25,14 +25,14 @@ export function ltvCap(
 ): number {
   if (houseCount >= 1) {
     if (dispositionPlanned) {
-      return regZone === 'adjusted' || regZone === 'overheated' ? 0.4 : 0.7;
+      return regZone === 'adjusted' ? 0.4 : 0.7;
     }
     if (sudogwon) {
-      return lowPriceException ? lenderLtv : 0;
+      return 0;
     }
     return 1; // 지방: 상한 없음(참고치)
   }
-  const regulated = regZone === 'adjusted' || regZone === 'overheated';
+  const regulated = regZone === 'adjusted';
   if (firstTimeBuyer) return sudogwon || regulated ? 0.7 : 0.8;
   if (realDemand && regulated) return 0.6;
   if (regulated) return 0.4;
@@ -86,10 +86,6 @@ export function regZoneLtvCap(zone: RegZone, houseCount: number): number {
   if (zone === 'adjusted') {
     if (houseCount === 0) return 0.5;
     if (houseCount === 1) return 0.4;
-    return 0;
-  }
-  if (zone === 'overheated') {
-    if (houseCount <= 1) return 0.4;
     return 0;
   }
   return 1;

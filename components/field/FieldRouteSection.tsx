@@ -274,9 +274,6 @@ export function FieldRouteSection() {
             className="field-route-count-input"
           />
         </label>
-        <button type="button" className="btn btn-outline btn-sm" onClick={useMyLocation}>
-          현재 위치를 출발지로
-        </button>
       </div>
 
       {geoHint ? <p className="s-note">{geoHint}</p> : null}
@@ -299,31 +296,6 @@ export function FieldRouteSection() {
 
       {plan.days.length > 0 ? (
         <>
-          <div
-            className="field-route-mode-tabs"
-            role="tablist"
-            aria-label="이동 수단"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={routeMode === 'transit'}
-              className={`field-route-mode-tab${routeMode === 'transit' ? ' active' : ''}`}
-              onClick={() => onRouteModeChange('transit')}
-            >
-              대중교통
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={routeMode === 'car'}
-              className={`field-route-mode-tab${routeMode === 'car' ? ' active' : ''}`}
-              onClick={() => onRouteModeChange('car')}
-            >
-              자차
-            </button>
-          </div>
-
           <div className="field-route-day-tabs" role="tablist">
             {plan.days.map((day) => (
               <button
@@ -342,22 +314,56 @@ export function FieldRouteSection() {
               </button>
             ))}
           </div>
-
-          {routeLoading ? (
-            <p className="s-note field-route-loading">
-              {routeModeLabel} 경로 계산 중…
-            </p>
-          ) : null}
-
-          {routeSummary ? (
-            <p className="field-route-summary">
-              {routeModeLabel} 예상 {routeSummary.durationLabel} ·{' '}
-              {routeSummary.distanceLabel}
-            </p>
-          ) : null}
         </>
       ) : null}
 
+      <div className="field-route-map-toolbar">
+        <div className="field-route-map-toolbar-main">
+          {plan.days.length > 0 ? (
+            <div
+              className="field-route-mode-tabs"
+              role="tablist"
+              aria-label="이동 수단"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={routeMode === 'transit'}
+                className={`field-route-mode-tab${routeMode === 'transit' ? ' active' : ''}`}
+                onClick={() => onRouteModeChange('transit')}
+              >
+                대중교통
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={routeMode === 'car'}
+                className={`field-route-mode-tab${routeMode === 'car' ? ' active' : ''}`}
+                onClick={() => onRouteModeChange('car')}
+              >
+                자차
+              </button>
+            </div>
+          ) : null}
+          {plan.days.length > 0 && routeLoading ? (
+            <span className="field-route-summary field-route-summary-inline">
+              {routeModeLabel} 경로 계산 중…
+            </span>
+          ) : routeSummary ? (
+            <span className="field-route-summary field-route-summary-inline">
+              {routeModeLabel} 예상 {routeSummary.durationLabel} ·{' '}
+              {routeSummary.distanceLabel}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={useMyLocation}
+        >
+          현재 위치를 출발지로
+        </button>
+      </div>
       <div className="field-route-map-wrap">
         <KakaoRouteMap
           start={startPoint ?? plan.startPoint}

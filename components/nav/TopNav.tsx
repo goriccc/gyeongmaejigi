@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/b', target: 'b', label: ko.nav.b },
   { href: '/c', target: 'c', label: ko.nav.c },
   { href: '/d', target: 'd', label: ko.nav.d },
+  { href: '/f', target: 'f', label: ko.nav.f },
   { href: '/e', target: 'e', label: ko.nav.e },
 ] as const;
 

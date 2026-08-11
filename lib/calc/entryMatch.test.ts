@@ -12,7 +12,7 @@ import {
   loanAmountCap,
   ltvCap,
 } from './ltv';
-import { regionStatus } from '@/data/regulatedRegions';
+import { regionStatus, regionInvestPossible, regionInvestTitleLabels } from '@/data/regulatedRegions';
 
 describe('baseLTV / applyLtvWithCredit', () => {
   it('주택수별 기준 LTV', () => {
@@ -28,16 +28,13 @@ describe('baseLTV / applyLtvWithCredit', () => {
 });
 
 describe('ltvCap (2025.6.27 + 10.15)', () => {
-  it('수도권 1주택 이상 → 원칙 LTV 0', () => {
+  it('수도권 1주택 이상 → 원칙 LTV 0 (저가특례 포함)', () => {
     expect(ltvCap(true, 'none', 1, false, false, 0.5, false, false)).toBe(0);
     expect(ltvCap(true, 'adjusted', 2, false, false, 0.4, false, false)).toBe(
       0,
     );
-  });
-
-  it('수도권 저가특례 → 금융권 LTV', () => {
-    expect(ltvCap(true, 'none', 1, true, false, 0.4, false, false)).toBe(0.4);
-    expect(ltvCap(true, 'none', 1, true, false, 0.5, false, false)).toBe(0.5);
+    expect(ltvCap(true, 'none', 1, true, false, 0.4, false, false)).toBe(0);
+    expect(ltvCap(true, 'none', 1, true, false, 0.5, false, false)).toBe(0);
   });
 
   it('처분조건부 → 규제 40% / 비규제 70%', () => {
@@ -53,7 +50,7 @@ describe('ltvCap (2025.6.27 + 10.15)', () => {
 
   it('무주택 규제지역 40%', () => {
     expect(
-      ltvCap(true, 'overheated', 0, false, false, 0.5, false, false),
+      ltvCap(true, 'adjusted', 0, false, false, 0.5, false, false),
     ).toBe(0.4);
   });
 
@@ -116,18 +113,18 @@ describe('acquisitionTaxRate', () => {
 
   it('저가주택·처분조건부 특례면 중과 무시', () => {
     expect(
-      acquisitionTaxRate(500_000_000, 2, 'overheated', true, false),
+      acquisitionTaxRate(500_000_000, 2, 'adjusted', true, false),
     ).toBeCloseTo(0.01);
     expect(
-      acquisitionTaxRate(500_000_000, 3, 'overheated', false, true),
+      acquisitionTaxRate(500_000_000, 3, 'adjusted', false, true),
     ).toBeCloseTo(0.01);
   });
 });
 
 describe('regionStatus', () => {
-  it('수도권 1주택 → blocked, 저가특례면 warn', () => {
+  it('수도권 1주택 → blocked (저가특례여도 blocked)', () => {
     expect(regionStatus(true, 1, false, false)).toBe('blocked');
-    expect(regionStatus(true, 1, true, false)).toBe('warn');
+    expect(regionStatus(true, 1, true, false)).toBe('blocked');
   });
 
   it('처분조건부면 전국 ok', () => {
@@ -138,6 +135,40 @@ describe('regionStatus', () => {
   it('지방 2주택 → warn, 저가특례면 ok', () => {
     expect(regionStatus(false, 2, false, false)).toBe('warn');
     expect(regionStatus(false, 2, true, false)).toBe('ok');
+  });
+});
+
+describe('regionInvestPossible', () => {
+  it('표 기준 — 수도권·지방 가능/불가', () => {
+    expect(regionInvestPossible(true, 0)).toBe(true);
+    expect(regionInvestPossible(false, 0)).toBe(true);
+    expect(regionInvestPossible(true, 1, true)).toBe(true);
+    expect(regionInvestPossible(false, 1, true)).toBe(true);
+    expect(regionInvestPossible(true, 1, false)).toBe(false);
+    expect(regionInvestPossible(false, 1, false)).toBe(true);
+    expect(regionInvestPossible(true, 2, false)).toBe(false);
+    expect(regionInvestPossible(true, 2, true)).toBe(false);
+    expect(regionInvestPossible(false, 2, false)).toBe(true);
+    expect(regionInvestPossible(false, 3, false)).toBe(true);
+  });
+
+  it('제목 라벨 — 지방 다주택 세금 표기', () => {
+    expect(regionInvestTitleLabels(2, false, false)).toEqual({
+      sudogwon: '불가',
+      regional: '가능 (세금 8%)',
+    });
+    expect(regionInvestTitleLabels(3, false, false)).toEqual({
+      sudogwon: '불가',
+      regional: '가능 (세금 12%)',
+    });
+    expect(regionInvestTitleLabels(2, false, true)).toEqual({
+      sudogwon: '불가',
+      regional: '가능',
+    });
+    expect(regionInvestTitleLabels(0, false, false)).toEqual({
+      sudogwon: '가능',
+      regional: '가능',
+    });
   });
 });
 
@@ -181,15 +212,16 @@ describe('calcEntryMatch', () => {
     expect(result.loanBadge).toBe('수도권 다주택 대출금지');
   });
 
-  it('수도권 저가특례 → 2금융 50% LTV', () => {
+  it('수도권 저가특례 → 대출금지 유지·취득세만 특례', () => {
     const result = calcEntryMatch({
       ...base,
       houseCount: 1,
       sudogwon: true,
       lowPriceException: true,
     });
-    expect(result.ltvApplied).toBe(0.5);
-    expect(result.loanBadge).toBe('저가주택 특례 LTV 적용');
+    expect(result.ltvApplied).toBe(0);
+    expect(result.loanCapacity).toBe(0);
+    expect(result.loanBadge).toBe('수도권 다주택 대출금지');
     expect(result.taxRate).toBeCloseTo(0.01);
   });
 

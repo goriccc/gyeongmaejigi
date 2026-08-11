@@ -180,17 +180,32 @@ export function getNextAction(c: CaseFile): CaseNextAction {
     if (c.bidOutcome === 'pending' || !c.bidOutcome) {
       return { href: '/d', label: '입찰가 확인' };
     }
+    if (c.bidOutcome === 'won' && (c.stage === 'D' || c.stage === 'F')) {
+      return { href: '/f', label: '대출상품 비교' };
+    }
   }
 
-  const order = ['A', 'B', 'C', 'D', 'E'] as const;
+  if (c.stage === 'F') {
+    return { href: '/f', label: '대출상품 비교' };
+  }
+
+  const order = ['A', 'B', 'C', 'D', 'F', 'E'] as const;
   const idx = order.indexOf(c.stage as (typeof order)[number]);
   const next = order[Math.min(idx + 1, order.length - 1)];
-  const hrefMap = { A: '/a', B: '/b', C: '/c', D: '/d', E: '/e' } as const;
+  const hrefMap = {
+    A: '/a',
+    B: '/b',
+    C: '/c',
+    D: '/d',
+    F: '/f',
+    E: '/e',
+  } as const;
   const labelMap = {
     A: '입찰사건',
     B: '권리분석',
     C: '임장 준비',
     D: '입찰가 계산',
+    F: '대출상품 비교',
     E: '명도 코칭',
   } as const;
   return { href: hrefMap[next], label: labelMap[next] };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getRouteLegColor } from '@/lib/field/routeLegColors';
 import { resolveRoutePathLegs } from '@/lib/field/routePathSplit';
 import type { GeoPoint, RouteStop } from '@/lib/field/types';
@@ -140,6 +140,30 @@ function resolvePathSegments(
   return resolveRoutePathLegs(path, undefined, stops);
 }
 
+function computeRouteBounds(
+  kakao: NonNullable<Window['kakao']>['maps'],
+  start: GeoPoint | null,
+  stops: RouteStop[],
+  pathSegments: GeoPoint[][],
+): KakaoLatLngBounds {
+  const bounds = new kakao.LatLngBounds();
+  const extend = (point: GeoPoint) => {
+    bounds.extend(new kakao.LatLng(point.lat, point.lng));
+  };
+
+  if (start) extend(start);
+  for (const stop of stops) extend(stop);
+  for (const segment of pathSegments) {
+    for (const point of segment) extend(point);
+  }
+
+  if (!start && stops.length === 0 && pathSegments.length === 0) {
+    extend({ lat: 37.5665, lng: 126.978 });
+  }
+
+  return bounds;
+}
+
 export function KakaoRouteMap({
   start,
   stops,
@@ -160,6 +184,23 @@ export function KakaoRouteMap({
     () => (!pathLoading ? resolvePathSegments(path, pathLegs, stops) : []),
     [path, pathLegs, pathLoading, stops],
   );
+
+  const hasFitTarget = Boolean(
+    start ||
+      stops.length > 0 ||
+      pathSegments.some((segment) => segment.length >= 2),
+  );
+
+  const fitFullRoute = useCallback(() => {
+    if (!mapRef.current || !window.kakao?.maps || !hasFitTarget) return;
+    const bounds = computeRouteBounds(
+      window.kakao.maps,
+      start,
+      stops,
+      pathSegments,
+    );
+    mapRef.current.setBounds(bounds, 48);
+  }, [hasFitTarget, pathSegments, start, stops]);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,12 +242,10 @@ export function KakaoRouteMap({
     }
     polylinesRef.current = [];
 
-    const bounds = new kakao.LatLngBounds();
-    bounds.extend(center);
+    const bounds = computeRouteBounds(kakao, start, stops, pathSegments);
 
     if (start) {
       const startPos = new kakao.LatLng(start.lat, start.lng);
-      bounds.extend(startPos);
       const startPin = makePinEl('S', false, 'start');
       const startOverlay = new kakao.CustomOverlay({
         map,
@@ -219,7 +258,6 @@ export function KakaoRouteMap({
 
     for (const stop of stops) {
       const pos = new kakao.LatLng(stop.lat, stop.lng);
-      bounds.extend(pos);
       const pin = makePinEl(String(stop.order), stop.caseId === selectedCaseId);
       pin.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -236,9 +274,6 @@ export function KakaoRouteMap({
 
     for (const [legIndex, segment] of pathSegments.entries()) {
       const latlngs = segment.map((p) => new kakao.LatLng(p.lat, p.lng));
-      for (const p of segment) {
-        bounds.extend(new kakao.LatLng(p.lat, p.lng));
-      }
       const active = isLegDestinationActive(legIndex, stops, selectedCaseId);
       polylinesRef.current.push(
         new kakao.Polyline({
@@ -278,11 +313,22 @@ export function KakaoRouteMap({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="kakao-route-map"
-      aria-label="카카오 지도 임장 동선"
-    />
+    <div className="kakao-route-map-shell">
+      <div
+        ref={containerRef}
+        className="kakao-route-map"
+        aria-label="카카오 지도 임장 동선"
+      />
+      {hasFitTarget ? (
+        <button
+          type="button"
+          className="btn btn-outline btn-sm kakao-route-map-fit-btn"
+          onClick={fitFullRoute}
+        >
+          전체 임장경로 보기
+        </button>
+      ) : null}
+    </div>
   );
 }
 

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '제3장 임장 준비',
-  description: '입찰 마감일 우선 임장 동선 계획과 지도 안내.',
+  title: '제5장 대출상품 비교',
+  description: '낙찰 후 대출상담사 조건을 비교·정렬합니다.',
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {

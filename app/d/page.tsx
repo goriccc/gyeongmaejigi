@@ -1,60 +1,28 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { RiskRow } from '@/components/ui/RiskRow';
-import { Disclaimer } from '@/components/ui/Disclaimer';
-import { calcBid, marginLabelText } from '@/lib/calc/bidCalculator';
+import { calcBid, marginLabelText, resolveBidLoanRate, resolveBidMargin } from '@/lib/calc/bidCalculator';
 import {
   calcCostItems,
   sumConditionalCostsWon,
   type ConditionalCostsWon,
 } from '@/lib/calc/costItems';
-import { rankLoanOffers } from '@/lib/calc/loanCompare';
 import { fmtWon, formatComma, parseNumberInput, pct } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
 import { useDebouncedSave } from '@/lib/hooks/useDebouncedSave';
 import { afterBidCalcSaved } from '@/lib/stage';
 import { normalizeCaseTrack } from '@/lib/caseUtils';
 import type { HousingBondApiResult } from '@/app/api/housing-bond/route';
-import type { BidOutcome, CaseFile, LoanOffer } from '@/types/case';
+import type { BidOutcome, CaseFile } from '@/types/case';
 import { inferBrokerFeeRegion } from '@/lib/geo/inferBrokerFeeRegion';
 import { ko } from '@/messages/ko';
 
 type BidCalcSaved = NonNullable<CaseFile['bidCalcInputs']>;
-
-const DEFAULT_LOANS: LoanOffer[] = [
-  {
-    id: '1',
-    name: '김정아 · 전자상거래(근저당)',
-    ltv: 75,
-    rate: 4.6,
-    prepayRate: 0.48,
-    prepayPeriod: 36,
-  },
-  {
-    id: '2',
-    name: '천유진 · 개인대출(중도3년)',
-    ltv: 90,
-    rate: 5.2,
-    prepayRate: 1.0,
-    prepayPeriod: 36,
-  },
-  {
-    id: '3',
-    name: '박현숙 · 일반사업자',
-    ltv: 85,
-    rate: 4.8,
-    prepayRate: 1.0,
-    prepayPeriod: 24,
-  },
-];
-
-function newId() {
-  return `loan-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
 
 type ConditionalCostKey = 'unpaid' | 'farm' | 'repair' | 'force';
 
@@ -135,6 +103,7 @@ function conditionalManForSave(
 }
 
 export default function BidCalcPage() {
+  const router = useRouter();
   const { activeCase, updateCase } = useCases();
   const saved = activeCase?.bidCalcInputs;
 
@@ -144,13 +113,12 @@ export default function BidCalcPage() {
       : '580,000,000',
   );
   const [months, setMonths] = useState(String(saved?.months ?? 6));
-  const [loanRate, setLoanRate] = useState(saved?.loanRate ?? 4.5);
-  const [margin, setMargin] = useState(saved?.margin ?? 5.5);
+  const [loanRate, setLoanRate] = useState(() =>
+    resolveBidLoanRate(saved?.loanRate),
+  );
+  const [margin, setMargin] = useState(() => resolveBidMargin(saved?.margin));
   const [costRate, setCostRate] = useState(
     saved?.costRate != null ? `${(saved.costRate * 100).toFixed(1)}%` : '5.0%',
-  );
-  const [loans, setLoans] = useState<LoanOffer[]>(
-    activeCase?.loanOffers?.length ? activeCase.loanOffers : DEFAULT_LOANS,
   );
   const [conditionalMan, setConditionalMan] = useState<
     Record<ConditionalCostKey, string>
@@ -170,18 +138,13 @@ export default function BidCalcPage() {
     if (s) {
       setSellPrice(formatComma(s.sellPrice));
       setMonths(String(s.months));
-      setLoanRate(s.loanRate);
-      setMargin(s.margin);
+      setLoanRate(resolveBidLoanRate(s.loanRate));
+      setMargin(resolveBidMargin(s.margin));
       setCostRate(`${(s.costRate * 100).toFixed(1)}%`);
       setConditionalMan(manwonFieldsFromSaved(s));
       setOfficialPrice(
         s.officialPrice ? formatComma(s.officialPrice) : '',
       );
-    }
-    if (activeCase?.loanOffers?.length) {
-      setLoans(activeCase.loanOffers);
-    } else if (activeCase) {
-      setLoans(DEFAULT_LOANS);
     }
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -341,20 +304,6 @@ export default function BidCalcPage() {
     return fmtWon(item.amount);
   }
 
-  const rankedLoans = useMemo(() => {
-    return rankLoanOffers(
-      loans.map((l) => ({
-        ...l,
-        ltv: l.ltv / 100,
-        rate: l.rate / 100,
-        prepayRate: l.prepayRate / 100,
-      })),
-      bid.bidPrice,
-      bid.grossProfit,
-      Math.min(6, Math.max(1, parseFloat(months) || 6)),
-    );
-  }, [loans, bid, months]);
-
   const savePayload = useMemo(
     () => ({
       sellPrice: parseNumberInput(sellPrice),
@@ -362,7 +311,6 @@ export default function BidCalcPage() {
       loanRate,
       margin,
       costRate: parseFloat(costRate) / 100 || 0.05,
-      loans,
       conditionalMan: conditionalManForSave(conditionalMan),
       officialPrice: officialPriceWon > 0 ? officialPriceWon : undefined,
     }),
@@ -372,7 +320,6 @@ export default function BidCalcPage() {
       loanRate,
       margin,
       costRate,
-      loans,
       conditionalMan,
       officialPriceWon,
     ],
@@ -396,7 +343,6 @@ export default function BidCalcPage() {
           forceExecCostMan: payload.conditionalMan.forceExecCostMan,
           officialPrice: payload.officialPrice,
         },
-        loanOffers: payload.loans,
         stage: afterBidCalcSaved(activeCase.stage),
       });
     },
@@ -404,30 +350,11 @@ export default function BidCalcPage() {
     activeCase?.id,
   );
 
-  function updateLoan(id: string, patch: Partial<LoanOffer>) {
-    setLoans((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-    );
-  }
-
-  function addLoan() {
-    setLoans((prev) => [
-      ...prev,
-      {
-        id: newId(),
-        name: '새 상담사',
-        ltv: 70,
-        rate: 4.5,
-        prepayRate: 0.5,
-        prepayPeriod: 36,
-      },
-    ]);
-  }
-
   function setBidOutcome(outcome: BidOutcome) {
     if (!activeCase) return;
     if (outcome === 'won') {
-      updateCase(activeCase.id, { stage: 'E', bidOutcome: 'won' });
+      updateCase(activeCase.id, { stage: 'F', bidOutcome: 'won' });
+      router.push('/f');
       return;
     }
     updateCase(activeCase.id, { bidOutcome: outcome });
@@ -663,120 +590,6 @@ export default function BidCalcPage() {
         </p>
       </Section>
 
-      <Section
-        title="대출상품 비교"
-        note='낙찰 후 명함을 주고받은 대출상담사들의 조건을 입력하면 순수익 기준으로 자동 정렬됩니다. 중도상환수수료는 "적용기간 이내 상환시 수수료율, 그 이후 체감"하는 실제 방식으로 계산됩니다.'
-      >
-        <table className="loan-table">
-          <thead>
-            <tr>
-              <th>상담사 / 상품</th>
-              <th>LTV</th>
-              <th>금리</th>
-              <th>중도상환수수료율</th>
-              <th>적용기간</th>
-              <th>세후 수익</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rankedLoans.map((row) => {
-              const original = loans.find((l) => l.id === row.id)!;
-              return (
-                <tr key={row.id}>
-                  <td>
-                    <input
-                      type="text"
-                      className="loan-input loan-name"
-                      value={original.name}
-                      onChange={(e) =>
-                        updateLoan(row.id, { name: e.target.value })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="loan-input"
-                      style={{ width: 44 }}
-                      value={original.ltv}
-                      onChange={(e) =>
-                        updateLoan(row.id, {
-                          ltv: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    %
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="loan-input"
-                      style={{ width: 44 }}
-                      value={original.rate}
-                      onChange={(e) =>
-                        updateLoan(row.id, {
-                          rate: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    %
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="loan-input"
-                      style={{ width: 44 }}
-                      value={original.prepayRate}
-                      onChange={(e) =>
-                        updateLoan(row.id, {
-                          prepayRate: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    %
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="loan-input"
-                      style={{ width: 38 }}
-                      value={original.prepayPeriod}
-                      onChange={(e) =>
-                        updateLoan(row.id, {
-                          prepayPeriod: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    개월
-                  </td>
-                  <td className="loan-profit">{fmtWon(row.netProfit)}</td>
-                  <td>
-                    {row.isBest ? (
-                      <span className="rank-1">최적</span>
-                    ) : (
-                      <span className="rank-n">{row.rank}위</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <p className="s-note" style={{ marginTop: 10 }}>
-          중도상환수수료 = 대출원금 × 수수료율 × (적용기간 − 보유개월) ÷
-          적용기간 (0 미만이면 수수료 없음)
-        </p>
-        <button
-          type="button"
-          className="btn-text"
-          style={{ marginTop: 16 }}
-          onClick={addLoan}
-        >
-          + 대출상담사 조건 추가
-        </button>
-      </Section>
-
       {showBidOutcome ? (
         <Section title={ko.bidOutcome.title} note={ko.bidOutcome.pendingHint}>
           {activeCase?.bidOutcome === 'won' ? (
@@ -807,18 +620,13 @@ export default function BidCalcPage() {
           </div>
           {activeCase?.bidOutcome === 'won' ? (
             <div style={{ marginTop: 16 }}>
-              <Link href="/e" className="btn btn-seal">
-                {ko.common.promoteToE} →
+              <Link href="/f" className="btn btn-seal">
+                {ko.common.promoteToF} →
               </Link>
             </div>
           ) : null}
         </Section>
       ) : null}
-
-      <Disclaimer>
-        1년 이상 실제 입찰 경험으로 검증된 계산식을 사용합니다. 세율·요율은
-        매년 갱신되며, 최종 세무 판단은 세무사 확인을 권합니다.
-      </Disclaimer>
     </>
   );
 }

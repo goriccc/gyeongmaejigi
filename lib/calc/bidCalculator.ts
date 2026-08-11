@@ -1,5 +1,24 @@
 import { AFTER_TAX_FACTOR, ASSUMED_LTV } from '@/data/taxTable';
 
+/** 입찰가 계산 UI 기본값 (% 단위) */
+export const DEFAULT_BID_LOAN_RATE = 5;
+export const DEFAULT_BID_MARGIN = 10;
+/** 이전 UI 기본값 — 저장값 마이그레이션용 */
+const LEGACY_BID_LOAN_RATE = 4.5;
+const LEGACY_BID_MARGIN = 5.5;
+
+export function resolveBidLoanRate(saved?: number): number {
+  if (saved == null) return DEFAULT_BID_LOAN_RATE;
+  if (saved === LEGACY_BID_LOAN_RATE) return DEFAULT_BID_LOAN_RATE;
+  return saved;
+}
+
+export function resolveBidMargin(saved?: number): number {
+  if (saved == null) return DEFAULT_BID_MARGIN;
+  if (saved === LEGACY_BID_MARGIN) return DEFAULT_BID_MARGIN;
+  return saved;
+}
+
 export type BidCalcInput = {
   /** 매도가(원) */
   sellPrice: number;

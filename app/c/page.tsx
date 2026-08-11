@@ -1,10 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Disclaimer } from '@/components/ui/Disclaimer';
 import { FieldRouteSection } from '@/components/field/FieldRouteSection';
 import { useCases } from '@/lib/hooks/useCases';
-import { ko } from '@/messages/ko';
 
 export default function FieldPrepPage() {
   const { activeCase } = useCases();
@@ -14,9 +12,9 @@ export default function FieldPrepPage() {
     <>
       <div className="chapter-mark">제3장 · 임장 준비</div>
       <h1 className="page-title">
-        가기 전에,
+        최적의 <em>임장 동선</em>을
         <br />
-        <em>뭘 봐야 할지</em> 압니다.
+        짜 드립니다.
       </h1>
       <p className="page-sub">
         입찰 마감일을 우선해 하루 임장 건수만큼 동선을 짜고, 지도에서 순번을
@@ -27,22 +25,12 @@ export default function FieldPrepPage() {
       {!hasRiskFlags && activeCase ? (
         <div className="banner">
           제2장 권리분석을 아직 하지 않으셨습니다.{' '}
-          <Link href="/b">대조체크를 진행</Link>하면 이 물건에 맞는 확인 항목이
-          추가됩니다.
+          <Link href="/b">대조체크를 진행</Link>하면 현장 전에 위험 요소를
+          먼저 짚어둘 수 있습니다.
         </div>
       ) : null}
 
       <FieldRouteSection />
-
-      <p className="notice-inline">
-        {ko.caseForm.lookupHint} 자차·대중교통 경로는 카카오 API 기준이며, 현장
-        출발 전 지도에서 위치를 다시 확인하세요.
-      </p>
-
-      <Disclaimer>
-        관리사무소 운영시간처럼 현장에서만 확인되는 정보는 포함되지 않습니다.
-        사전 전화 확인을 권합니다.
-      </Disclaimer>
     </>
   );
 }

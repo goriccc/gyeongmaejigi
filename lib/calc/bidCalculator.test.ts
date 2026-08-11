@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { calcBid, marginLabelText } from './bidCalculator';
+import {
+  calcBid,
+  marginLabelText,
+  resolveBidLoanRate,
+  resolveBidMargin,
+} from './bidCalculator';
 import { calcCostItems, brokerFeeRate } from './costItems';
 import { rankLoanOffers } from './loanCompare';
 
@@ -45,6 +50,17 @@ describe('marginLabelText', () => {
     expect(marginLabelText(3)).toBe('저마진');
     expect(marginLabelText(5.5)).toBe('중마진');
     expect(marginLabelText(10)).toBe('고마진');
+  });
+});
+
+describe('resolveBidLoanRate / resolveBidMargin', () => {
+  it('기본값·레거시 마이그레이션', () => {
+    expect(resolveBidLoanRate()).toBe(5);
+    expect(resolveBidLoanRate(4.5)).toBe(5);
+    expect(resolveBidLoanRate(4.8)).toBe(4.8);
+    expect(resolveBidMargin()).toBe(10);
+    expect(resolveBidMargin(5.5)).toBe(10);
+    expect(resolveBidMargin(8)).toBe(8);
   });
 });
 

@@ -10,7 +10,8 @@ const TABS = [
   { href: '/b', label: '제2장' },
   { href: '/c', label: '제3장' },
   { href: '/d', label: '제4장' },
-  { href: '/e', label: '제5장' },
+  { href: '/f', label: '제5장' },
+  { href: '/e', label: '제6장' },
 ] as const;
 
 export function BottomNav() {

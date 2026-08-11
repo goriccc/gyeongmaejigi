@@ -231,6 +231,7 @@ export default function DashboardPage() {
                 { ch: 'B' as const, href: '/b', name: '권리분석' },
                 { ch: 'C' as const, href: '/c', name: '임장 준비' },
                 { ch: 'D' as const, href: '/d', name: '입찰가 계산' },
+                { ch: 'F' as const, href: '/f', name: '대출상품 비교' },
                 { ch: 'E' as const, href: '/e', name: '명도 코칭' },
               ] as const
             ).map((item) => {
@@ -238,6 +239,14 @@ export default function DashboardPage() {
               const done = progress === '완료';
               const active = progress === '진행중';
               const skipped = progress === '건너뜀';
+              const chapterNums: Record<(typeof item)['ch'], number> = {
+                A: 1,
+                B: 2,
+                C: 3,
+                D: 4,
+                F: 5,
+                E: 6,
+              };
               return (
                 <Link
                   key={item.ch}
@@ -245,9 +254,7 @@ export default function DashboardPage() {
                   className={`lc-node${done ? ' done' : ''}${active ? ' active' : ''}${skipped ? ' skipped' : ''}`}
                 >
                   <div className="lc-dot" />
-                  <span className="lc-num">
-                    제{['A', 'B', 'C', 'D', 'E'].indexOf(item.ch) + 1}장
-                  </span>
+                  <span className="lc-num">제{chapterNums[item.ch]}장</span>
                   <div className="lc-name">{item.name}</div>
                   <div className="lc-desc">{progress}</div>
                 </Link>

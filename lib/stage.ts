@@ -1,7 +1,7 @@
 import type { CaseFile, CaseStage, CaseTrack } from '@/types/case';
 import { normalizeCaseTrack } from '@/lib/caseUtils';
 
-export type ChapterKey = 'dashboard' | 'A' | 'B' | 'C' | 'D' | 'E';
+export type ChapterKey = 'dashboard' | 'A' | 'B' | 'C' | 'D' | 'F' | 'E';
 
 export type ChapterProgress =
   | '완료'
@@ -10,7 +10,7 @@ export type ChapterProgress =
   | '해당 없음'
   | '건너뜀';
 
-const STAGE_ORDER: CaseStage[] = ['A', 'B', 'C', 'D', 'E', 'done'];
+const STAGE_ORDER: CaseStage[] = ['A', 'B', 'C', 'D', 'F', 'E', 'done'];
 
 function stageIndex(stage: CaseStage): number {
   return STAGE_ORDER.indexOf(stage);
@@ -86,6 +86,11 @@ export function afterBidCalcSaved(stage: CaseStage): CaseStage {
   return promoteStage(stage, 'D');
 }
 
+/** 대출상품 비교 저장 시 D→F (낙찰 전에도 입력 가능) */
+export function afterLoanCompareSaved(stage: CaseStage): CaseStage {
+  return promoteStage(stage, 'F');
+}
+
 export function stageBadgeLabel(caseFile: CaseFile): string {
   const track = normalizeCaseTrack(caseFile);
 
@@ -108,11 +113,11 @@ export function stageBadgeLabel(caseFile: CaseFile): string {
     case 'C':
       return '제3장 · 임장준비';
     case 'D':
-      return caseFile.bidOutcome === 'won'
-        ? '낙찰 · 명도 대기'
-        : '제4장 · 입찰가계산';
+      return '제4장 · 입찰가계산';
+    case 'F':
+      return '제5장 · 대출비교';
     case 'E':
-      return '제5장 · 명도코칭';
+      return '제6장 · 명도코칭';
     default:
       return caseFile.stage;
   }

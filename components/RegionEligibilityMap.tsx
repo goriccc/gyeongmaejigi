@@ -8,6 +8,7 @@ import {
   REGULATED_AS_OF,
   REGION_TILES,
   regionStatus,
+  regionInvestTitleLabels,
   SUDOGWON,
   type RegionStatus,
 } from '@/data/regulatedRegions';
@@ -21,8 +22,7 @@ const HOUSE_LABELS: Record<HouseCount, string> = {
 
 const REG_ZONE_LABEL: Record<RegZone, string> = {
   none: '비규제지역',
-  adjusted: '조정대상지역',
-  overheated: '투기과열지구',
+  adjusted: '규제지역 (조정·투기과열)',
 };
 
 const MOUTH_PATHS = {
@@ -109,9 +109,12 @@ export function RegionEligibilityMap({
     ` 기준 — 적용 LTV ${(ltvApplied * 100).toFixed(0)}%, 취득세 ${(taxRate * 100).toFixed(1)}%` +
     (activeTags.length ? ` · ${activeTags.join('·')} 적용` : '');
 
+  const investLabels = regionInvestTitleLabels(houseCount, disposition, lowPrice);
+  const sectionTitle = `지역별 투자 가능 여부 : 수도권 ${investLabels.sudogwon} | 지방 ${investLabels.regional}`;
+
   return (
     <div className="section">
-      <h3>지역별 투자 가능 여부 (전국)</h3>
+      <h3>{sectionTitle}</h3>
       <p className="s-note">
         &quot;투자하기 좋은 곳&quot;이 아니라 &quot;지금 설정으로 대출·세금이
         어떻게 되는지&quot;만 보여드립니다. 실제 투자 지역 선택은 전적으로 본인
@@ -179,8 +182,9 @@ export function RegionEligibilityMap({
           된다&quot;와 &quot;경쟁력이 있다&quot;는 다릅니다.
         </p>
         <p className="s-note" style={{ marginBottom: 0 }}>
-          저가주택 특례·처분조건부·생애최초·서민실수요자 중 하나라도 해당하면
-          위 배지 색이 실제보다 유리하게 바뀔 수 있습니다. &quot;해당함&quot;으로
+          처분조건부·생애최초·서민실수요자는 LTV·대출 가능 여부에 영향을 줄 수
+          있습니다. 저가주택 특례는 취득세에만 적용되며, 수도권 다주택자
+          대출금지는 예외 없이 그대로 적용됩니다. &quot;해당함&quot;으로
           선택하면 타일 하단에 기준 공시가격(수도권 1억원 / 지방 2억원)도 함께
           표시됩니다.
         </p>
@@ -235,9 +239,9 @@ export function RegionEligibilityMap({
             {lowPrice ? (
               <>
                 <span style={{ color: 'var(--brass-deep)' }}>
-                  저가주택 특례 적용 중 — 지방의 취득세 중과는 해소되고,
-                  수도권의 대출금지도 완전차단 대신 LTV 40%(1금융)·50%(2금융)로
-                  완화됩니다.
+                  저가주택 특례 적용 중 — 취득세 일반세율(중과 해소)만
+                  적용됩니다. 수도권 다주택자 대출금지는 예외 없이 그대로
+                  적용됩니다.
                 </span>
                 <br />
               </>

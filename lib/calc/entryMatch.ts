@@ -23,7 +23,7 @@ export type EntryMatchInput = {
   creditState: CreditState;
   /** 연소득(원) — 세션 전용, 저장하지 않음 */
   annualIncome: number;
-  /** DSR 한도 비율 (1금융 0.4 / 2금융 0.5). 저가특례 lenderLtv로도 사용 */
+  /** DSR 한도 비율 (1금융 0.4 / 2금융 0.5) */
   dsrRate: number;
   regZone?: RegZone;
   sudogwon?: boolean;
@@ -69,7 +69,6 @@ function loanBadgeFor(params: {
   houseCount: HouseCount;
   sudogwon: boolean;
   zoneCap: number;
-  lowPriceException: boolean;
 }): { loanBadge: string; loanBadgeTone: 'ok' | 'warn' | 'mid' } {
   const {
     binding,
@@ -79,7 +78,6 @@ function loanBadgeFor(params: {
     houseCount,
     sudogwon,
     zoneCap,
-    lowPriceException,
   } = params;
 
   if (firstTimeBuyer) {
@@ -96,9 +94,6 @@ function loanBadgeFor(params: {
   }
   if (sudogwon && houseCount >= 1 && zoneCap === 0) {
     return { loanBadge: '수도권 다주택 대출금지', loanBadgeTone: 'warn' };
-  }
-  if (sudogwon && houseCount >= 1 && lowPriceException) {
-    return { loanBadge: '저가주택 특례 LTV 적용', loanBadgeTone: 'mid' };
   }
   if (binding === 'CAP') {
     return {
@@ -143,7 +138,7 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     30,
   );
 
-  const lenderLtv = dsrRate; // 1금융 40% / 2금융 50% (저가특례)
+  const lenderLtv = dsrRate;
   const zoneCap = ltvCap(
     sudogwon,
     regZone,
@@ -231,7 +226,6 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     houseCount >= 1 &&
     !firstTimeBuyer &&
     !realDemand &&
-    !lowPriceException &&
     !dispositionPlanned;
 
   const { loanBadge, loanBadgeTone } = loanBadgeFor({
@@ -242,7 +236,6 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     houseCount,
     sudogwon,
     zoneCap,
-    lowPriceException,
   });
 
   return {

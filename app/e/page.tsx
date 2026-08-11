@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { Section } from '@/components/ui/Section';
-import { Disclaimer } from '@/components/ui/Disclaimer';
 import { EvictionModelBlock } from '@/components/eviction/EvictionModelBlock';
 import { useCases } from '@/lib/hooks/useCases';
 import { readJsonSafe } from '@/lib/http/readJsonSafe';
@@ -294,7 +293,7 @@ export default function EvictionCoachPage() {
     return (
       <div className="banner">
         {ko.evictionBanner.biddingPrep}
-        {activeCase.stage === 'D' ? (
+        {activeCase.stage === 'D' || activeCase.stage === 'F' ? (
           <>
             {' '}
             <button
@@ -312,7 +311,7 @@ export default function EvictionCoachPage() {
 
   return (
     <>
-      <div className="chapter-mark">제5장 · 명도 코칭</div>
+      <div className="chapter-mark">제6장 · 명도 코칭</div>
       <h1 className="page-title">
         대화를 붙여넣으면,
         <br />
@@ -407,12 +406,6 @@ export default function EvictionCoachPage() {
           ) : null}
         </div>
       ) : null}
-
-      <Disclaimer>
-        저항 등급과 회신 초안은 확률이 아닌 대화 맥락 기반 추정입니다. 붙여넣은
-        대화는 저장되지 않으며, 강제집행 등 실제 법적 절차는 전문가 확인이
-        필요합니다. AI 결과는 참고용입니다.
-      </Disclaimer>
 
       {certOpen ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

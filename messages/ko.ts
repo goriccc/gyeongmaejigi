@@ -7,6 +7,7 @@ export const ko = {
     b: '권리분석',
     c: '임장준비',
     d: '입찰가계산',
+    f: '대출비교',
     e: '명도코칭',
   },
   rail: {
@@ -16,7 +17,8 @@ export const ko = {
     ch2: '권리분석',
     ch3: '임장 준비',
     ch4: '입찰가 계산',
-    ch5: '명도 코칭',
+    ch5: '대출상품 비교',
+    ch6: '명도 코칭',
   },
   dashboard: {
     mark: '제1장 · 입찰사건',
@@ -119,7 +121,8 @@ export const ko = {
       return parts.length ? parts.join(' · ') : '진행중 사건 없음';
     },
     noActiveCase: '활성 사건 없음 — 계산은 가능하지만 물건별 저장은 되지 않습니다.',
-    promoteToE: '낙찰됨 · 명도 단계로 전환',
+    promoteToE: '명도 단계로 전환',
+    promoteToF: '대출상품 비교',
     completeEviction: '명도 완료',
     preparing: '준비중',
     loading: '분석 중…',

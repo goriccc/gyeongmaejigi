@@ -1,4 +1,6 @@
-export type CaseStage = 'A' | 'B' | 'C' | 'D' | 'E' | 'done';
+import type { RegZone } from '@/lib/calc/acquisitionTax';
+
+export type CaseStage = 'A' | 'B' | 'C' | 'D' | 'F' | 'E' | 'done';
 
 /** 입찰 준비(A~D) vs 명도 전용(E) */
 export type CaseTrack = 'bidding' | 'eviction';
@@ -88,7 +90,7 @@ export type EntryMatchInputs = {
   propType: '아파트' | '다세대' | '다가구';
   lenderType: '1금융권' | '2금융권';
   /** 물건 소재지 규제구분 (취득세용) */
-  regZone?: 'none' | 'adjusted' | 'overheated';
+  regZone?: RegZone;
   /** 수도권 여부 (LTV 6.27대책용) */
   sudogwon?: boolean;
   /** 저가주택 특례 해당 여부 */

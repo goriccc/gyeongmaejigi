@@ -1,6 +1,12 @@
 import { ACQUISITION_TAX_BRACKETS } from '@/data/taxTable';
 
-export type RegZone = 'none' | 'adjusted' | 'overheated';
+export type RegZone = 'none' | 'adjusted';
+
+/** 저장된 legacy 값(overheated)을 규제지역으로 통합 */
+export function normalizeRegZone(zone?: string | null): RegZone {
+  if (zone === 'adjusted' || zone === 'overheated') return 'adjusted';
+  return 'none';
+}
 
 /** 현재 보유 주택수 (3 = 3주택 이상 → 매수 후 4주택 이상) */
 export type HouseCount = 0 | 1 | 2 | 3;
@@ -26,7 +32,7 @@ export function acquisitionTaxRate(
   if (dispositionPlanned || lowPriceException) {
     return progressiveRate(price);
   }
-  const regulated = regZone === 'adjusted' || regZone === 'overheated';
+  const regulated = regZone === 'adjusted';
   if (houseCount >= 3) return 0.12;
   if (houseCount === 2) return regulated ? 0.12 : 0.08;
   if (houseCount === 1 && regulated) return 0.08;

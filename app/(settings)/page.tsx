@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { Badge } from '@/components/ui/Badge';
-import { Disclaimer } from '@/components/ui/Disclaimer';
 import { RegionEligibilityMap } from '@/components/RegionEligibilityMap';
 import { calcEntryMatch } from '@/lib/calc/entryMatch';
-import type { HouseCount, RegZone } from '@/lib/calc/acquisitionTax';
+import {
+  normalizeRegZone,
+  type HouseCount,
+  type RegZone,
+} from '@/lib/calc/acquisitionTax';
 import { CREDIT_MAP, type CreditState } from '@/lib/calc/ltv';
 import { fmtWon, formatComma, parseNumberInput } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
@@ -27,14 +30,12 @@ const LENDER_DSR: Record<LenderType, number> = {
 
 const REG_ZONE_LABEL: Record<RegZone, string> = {
   none: '비규제지역',
-  adjusted: '조정대상지역',
-  overheated: '투기과열지구',
+  adjusted: '규제지역 (조정대상지역·투기과열지구)',
 };
 
 const REG_ZONE_BADGE: Record<RegZone, 'neutral' | 'mid' | 'warn'> = {
   none: 'neutral',
-  adjusted: 'mid',
-  overheated: 'warn',
+  adjusted: 'warn',
 };
 
 const HOUSE_LABELS: Record<HouseCount, string> = {
@@ -178,7 +179,10 @@ export default function EntryMatchPage() {
     initial?.lenderType ?? '2금융권',
   );
   const [sudogwon, setSudogwon] = useState(initial?.sudogwon ?? true);
-  const [regZone, setRegZone] = useState<RegZone>(initial?.regZone ?? 'none');
+  const [regZone, setRegZone] = useState<RegZone>(() => {
+    const isSudogwon = initial?.sudogwon ?? true;
+    return isSudogwon ? normalizeRegZone(initial?.regZone) : 'none';
+  });
   const [lowPriceException, setLowPriceException] = useState(
     initial?.lowPriceException ?? false,
   );
@@ -200,12 +204,18 @@ export default function EntryMatchPage() {
     setPropType(s.propType);
     setLenderType(s.lenderType);
     setSudogwon(s.sudogwon ?? true);
-    setRegZone(s.regZone ?? 'none');
+    setRegZone(
+      s.sudogwon === false ? 'none' : normalizeRegZone(s.regZone),
+    );
     setLowPriceException(s.lowPriceException ?? false);
     setDispositionPlanned(s.dispositionPlanned ?? false);
     setFirstTimeBuyer(s.firstTimeBuyer ?? false);
     setRealDemand(s.realDemand ?? false);
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!sudogwon) setRegZone('none');
+  }, [sudogwon]);
 
   // 특례 boolean — 최상단에서 한 번 계산 후 하위 전부 재사용
   const ftb = houseCount === 0 && firstTimeBuyer;
@@ -551,7 +561,11 @@ export default function EntryMatchPage() {
                 <select
                   id="sudogwon"
                   value={sudogwon ? 'yes' : 'no'}
-                  onChange={(e) => setSudogwon(e.target.value === 'yes')}
+                  onChange={(e) => {
+                    const next = e.target.value === 'yes';
+                    setSudogwon(next);
+                    if (!next) setRegZone('none');
+                  }}
                 >
                   <option value="yes">수도권 (서울·경기·인천)</option>
                   <option value="no">지방</option>
@@ -587,11 +601,16 @@ export default function EntryMatchPage() {
                   onChange={(e) => setRegZone(e.target.value as RegZone)}
                 >
                   <option value="none">비규제지역</option>
-                  <option value="adjusted">조정대상지역</option>
-                  <option value="overheated">투기과열지구</option>
+                  <option value="adjusted">
+                    규제지역 (조정대상지역·투기과열지구)
+                  </option>
                 </select>
               </div>
-              <p className="field-hint" />
+              <p className="field-hint">
+                {sudogwon
+                  ? '현재 규제지역(서울 전역, 경기 12곳+화성 동탄구·용인 기흥구·구리시)은 조정대상지역과 투기과열지구로 동시 지정되어 있어 계산상 구분이 없습니다.'
+                  : '지방 소재는 규제지역 구분이 없어 비규제지역으로 자동 적용됩니다.'}
+              </p>
             </div>
           </div>
 
@@ -613,13 +632,15 @@ export default function EntryMatchPage() {
                 >
                   <option value="no">해당 없음</option>
                   <option value="yes">
-                    해당함 — 취득세 일반세율 + LTV 40%(1금융)·50%(2금융) 적용
+                    해당함 — 취득세 일반세율 적용 (대출 조건에는 영향 없음)
                   </option>
                 </select>
               </div>
               <p className="field-hint">
                 기준은 낙찰가가 아니라 공시가격입니다. 정비구역(재개발·재건축
                 지정구역)은 특례 대상에서 제외되니 직접 확인 후 선택하세요.
+                저가주택 특례는 취득세에만 적용되고, 수도권 다주택자
+                대출금지는 예외 없이 그대로 적용됩니다.
               </p>
             </div>
             <div
@@ -744,19 +765,6 @@ export default function EntryMatchPage() {
         }
       />
 
-      <Disclaimer>
-        DSR은 원리금균등분할 · 심사만기 30년 가정(경락잔금대출은 담보대출
-        성격이라 신용대출보다 긴 만기 관행 적용)에 스트레스DSR
-        가산(수도권 +3%p / 지방 +1.5%p)을 반영한 근사치입니다. LTV는
-        2025.6.27·10.15 부동산대책(수도권 다주택 대출금지·절대금액
-        캡·생애최초·서민실수요자 우대)을 반영했으며, 지방은 정부 상한이 없어
-        은행 자율이라 참고치입니다. 실제 대출기관의 심사만기·상환방식·LTV에
-        따라 달라질 수 있으니 참고용으로만 활용하세요. 이 결과는 자격 요건
-        계산이며, 특정 지역·물건에 대한 투자 추천이 아닙니다. 아래 지도는 대출
-        가능 여부만 보여드리는 참고 자료이며, 어디에 투자할지는 전적으로 본인
-        판단입니다. 규제지역 지정 현황·대출 규제는 수시로 바뀌므로 실제 입찰 전
-        국토부·금융위 공식 발표를 반드시 재확인하세요.
-      </Disclaimer>
     </>
   );
 }
