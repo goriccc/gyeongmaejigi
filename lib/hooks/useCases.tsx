@@ -11,7 +11,6 @@ import {
 } from 'react';
 import { localCaseStore, type CaseStore } from '@/lib/store';
 import type { CaseFile, CreateCaseInput } from '@/types/case';
-
 type CasesContextValue = {
   cases: CaseFile[];
   activeId: string | null;

@@ -1,6 +1,7 @@
 /**
  * 최종 갱신일: 2026-08-07, 다음 갱신 예정: 매년 1월
- * 취득세 / 지방교육세 / 중개보수 요율표 — 연 1회 수동 갱신 대상
+ * 취득세 / 지방교육세 — 연 1회 수동 갱신 대상
+ * 중개보수: data/brokerFeeRates.ts (공인중개사법 시행규칙 제20조)
  */
 
 /** 취득세 구간 경계 (원) */
@@ -11,14 +12,6 @@ export const ACQUISITION_TAX_BRACKETS = {
 
 /** 다주택 중과 세율 (규제지역 가정, 목업 단순화) */
 export const MULTI_HOUSE_SURCHARGE_RATE = 0.08;
-
-/** 중개보수 요율 구간 (매도가 기준) */
-export const BROKER_FEE_BRACKETS = [
-  { max: 900_000_000, rate: 0.004 },
-  { max: 1_200_000_000, rate: 0.005 },
-  { max: 1_500_000_000, rate: 0.006 },
-  { max: Infinity, rate: 0.007 },
-] as const;
 
 /** 모듈 D 고정 비용 가정치 (원) */
 export const FIXED_COSTS = {

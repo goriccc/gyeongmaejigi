@@ -88,7 +88,7 @@ function loanBadgeFor(params: {
   if (realDemand) {
     return { loanBadge: '서민·실수요자 우대 LTV 적용', loanBadgeTone: 'ok' };
   }
-  if (dispositionPlanned && houseCount >= 1) {
+  if (dispositionPlanned && houseCount === 1) {
     return {
       loanBadge: '처분조건부 · 무주택자 기준 적용',
       loanBadgeTone: 'mid',
@@ -125,11 +125,14 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     regZone = 'none',
     sudogwon = true,
     lowPriceException = false,
-    dispositionPlanned = false,
+    dispositionPlanned: dispositionPlannedRaw = false,
   } = input;
 
   const firstTimeBuyer = houseCount === 0 && Boolean(input.firstTimeBuyer);
   const realDemand = houseCount === 0 && Boolean(input.realDemand);
+  // 처분조건부(일시적 2주택)는 현재 1주택일 때만 유효
+  const dispositionPlanned =
+    Boolean(dispositionPlannedRaw) && houseCount === 1;
 
   const credit = CREDIT_MAP[creditState];
   const stressPremium = stressDsrPremium(sudogwon);

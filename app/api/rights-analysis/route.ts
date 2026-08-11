@@ -1,6 +1,5 @@
 import { analyzeWithClaude, CLAUDE_MODEL } from '@/lib/llm/claude';
 import {
-  extractPdfText,
   fileToBase64,
   isPdfFile,
   MAX_PDF_BYTES,
@@ -21,6 +20,7 @@ async function runOne(
       model: CLAUDE_MODEL,
       label: 'AI 권리분석',
       summary: result.summary,
+      expertGuide: result.expertGuide,
       documentsProvided: result.documentsProvided,
       documentsMissing: result.documentsMissing,
       riskFlags: result.riskFlags,
@@ -112,23 +112,6 @@ export async function POST(req: Request) {
       mimeType: 'application/pdf',
       base64,
     });
-
-    try {
-      const { text, pageCount } = await extractPdfText(file);
-      if (text) {
-        extractedChunks.push(
-          `### ${file.name} (PDF 텍스트 추출, ${pageCount}p)\n${text.slice(0, 60_000)}`,
-        );
-      } else {
-        extractedChunks.push(
-          `### ${file.name}\n(텍스트 추출 결과 없음 — 스캔본일 가능성이 있습니다)`,
-        );
-      }
-    } catch (err) {
-      extractedChunks.push(
-        `### ${file.name}\n(텍스트 추출 실패: ${err instanceof Error ? err.message : '오류'})`,
-      );
-    }
   }
 
   if (extractedChunks.length) {

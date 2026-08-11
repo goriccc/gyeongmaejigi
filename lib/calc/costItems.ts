@@ -1,9 +1,15 @@
 import {
-  BROKER_FEE_BRACKETS,
   DEFAULT_PREPAY,
   FIXED_COSTS,
 } from '@/data/taxTable';
+import {
+  brokerFeeNote,
+  calcBrokerFee,
+  type CalcBrokerFeeOptions,
+} from './brokerFee';
 import { eduTaxRate, progressiveAcquisitionTaxRate } from './acquisitionTax';
+
+export { brokerFeeRate } from './brokerFee';
 
 export type CostItem = {
   key: string;
@@ -14,23 +20,38 @@ export type CostItem = {
   kind: 'required' | 'conditional';
 };
 
+export type ConditionalCostsWon = {
+  unpaid?: number;
+  farm?: number;
+  repair?: number;
+  force?: number;
+};
+
+export type HousingBondCostInput = {
+  customerBurden: number;
+  note: string;
+};
+
+/** 조건부 비용 4종 합계(원) */
+export function sumConditionalCostsWon(
+  conditional: ConditionalCostsWon = {},
+): number {
+  return (
+    (conditional.unpaid ?? 0) +
+    (conditional.farm ?? 0) +
+    (conditional.repair ?? 0) +
+    (conditional.force ?? 0)
+  );
+}
+
 export type CostItemsResult = {
   items: CostItem[];
   requiredTotal: number;
+  conditionalTotal: number;
+  detailedTotal: number;
   approxTotal: number;
   diff: number;
 };
-
-/**
- * 매도가 기준 중개보수 요율을 반환합니다.
- * @param sell - 매도가(원)
- */
-export function brokerFeeRate(sell: number): number {
-  for (const b of BROKER_FEE_BRACKETS) {
-    if (sell < b.max) return b.rate;
-  }
-  return 0.007;
-}
 
 /**
  * 입찰가·매도가 기준 비용 항목 13종을 계산합니다.
@@ -43,6 +64,9 @@ export function brokerFeeRate(sell: number): number {
  * @param costRate - 개략 취득비용률
  * @param prepayRate - 중도상환수수료율 (기본 가정값)
  * @param prepayPeriod - 적용기간(개월)
+ * @param conditional - 조건부 비용 (원)
+ * @param housingBond - 국민주택채권 즉시매도 본인부담금 (공시가 기준)
+ * @param brokerFeeRegion - 중개보수 조례 시·도 (inferBrokerFeeRegion 결과)
  */
 export function calcCostItems(
   bid: number,
@@ -54,6 +78,9 @@ export function calcCostItems(
   costRate: number,
   prepayRate = DEFAULT_PREPAY.rate,
   prepayPeriod = DEFAULT_PREPAY.periodMonths,
+  conditional: ConditionalCostsWon = {},
+  housingBond: HousingBondCostInput | null = null,
+  brokerFeeRegion: CalcBrokerFeeOptions = {},
 ): CostItemsResult {
   const taxRate = progressiveAcquisitionTaxRate(bid);
   const taxAmt = bid * taxRate;
@@ -63,8 +90,12 @@ export function calcCostItems(
     loanPrincipal *
     prepayRate *
     Math.max(0, (prepayPeriod - months) / prepayPeriod);
-  const brokerRate = brokerFeeRate(sell);
-  const brokerFee = sell * brokerRate;
+  const broker = calcBrokerFee(sell, brokerFeeRegion);
+  const bondAmount =
+    housingBond != null ? housingBond.customerBurden : FIXED_COSTS.housingBond;
+  const bondNote =
+    housingBond?.note ??
+    '시가표준액 기준 매입률 고시에 따름 — 150만원 가정치';
 
   const items: CostItem[] = [
     {
@@ -94,8 +125,8 @@ export function calcCostItems(
     {
       key: 'bond',
       name: '국민주택채권 매입 할인비',
-      note: '시가표준액 기준 매입률 고시에 따름 — 150만원 가정치',
-      amount: FIXED_COSTS.housingBond,
+      note: bondNote,
+      amount: bondAmount,
       rate: null,
       kind: 'required',
     },
@@ -126,9 +157,9 @@ export function calcCostItems(
     {
       key: 'broker',
       name: '중개보수 (매도시)',
-      note: '매도가 기준 구간별 0.4~0.7%',
-      amount: brokerFee,
-      rate: brokerRate,
+      note: brokerFeeNote(broker),
+      amount: broker.amount,
+      rate: broker.rate,
       kind: 'required',
     },
     {
@@ -143,7 +174,7 @@ export function calcCostItems(
       key: 'unpaid',
       name: '미납관리비',
       note: '물건별로 다름 — 확인되면 입찰가에서 선반영 권장',
-      amount: null,
+      amount: conditional.unpaid ?? null,
       rate: null,
       kind: 'conditional',
     },
@@ -151,7 +182,7 @@ export function calcCostItems(
       key: 'farm',
       name: '농어촌특별세',
       note: '전용 85㎡ 초과시 0.2%, 이하는 면제',
-      amount: null,
+      amount: conditional.farm ?? null,
       rate: null,
       kind: 'conditional',
     },
@@ -159,7 +190,7 @@ export function calcCostItems(
       key: 'repair',
       name: '수리비',
       note: '임장에서 확인된 상태에 따라 다름',
-      amount: null,
+      amount: conditional.repair ?? null,
       rate: null,
       kind: 'conditional',
     },
@@ -167,7 +198,7 @@ export function calcCostItems(
       key: 'force',
       name: '강제집행비',
       note: '평균 10건 중 1건 발생, 발생시 600~700만원 — 사전 반영 불가',
-      amount: null,
+      amount: conditional.force ?? null,
       rate: null,
       kind: 'conditional',
     },
@@ -176,12 +207,18 @@ export function calcCostItems(
   const requiredTotal = items
     .filter((i) => i.kind === 'required' && i.amount != null)
     .reduce((s, i) => s + (i.amount ?? 0), 0);
+  const conditionalTotal = items
+    .filter((i) => i.kind === 'conditional' && i.amount != null)
+    .reduce((s, i) => s + (i.amount ?? 0), 0);
+  const detailedTotal = requiredTotal + conditionalTotal;
   const approxTotal = sell * costRate;
 
   return {
     items,
     requiredTotal,
+    conditionalTotal,
+    detailedTotal,
     approxTotal,
-    diff: approxTotal - requiredTotal,
+    diff: approxTotal - detailedTotal,
   };
 }

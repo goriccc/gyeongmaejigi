@@ -23,9 +23,7 @@ type RightsStreamEvent =
 export default function RightsAnalysisPage() {
   const { activeCase, updateCase } = useCases();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [judgment, setJudgment] = useState(
-    '대항력 있는 임차인 없음, 선순위 근저당 1건이 말소기준권리로 판단됨',
-  );
+  const [judgment, setJudgment] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,10 +33,28 @@ export default function RightsAnalysisPage() {
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    if (activeCase?.rightsAnalysis) {
-      setCompare(activeCase.rightsAnalysis);
-    }
+    setJudgment(activeCase?.rightsJudgment ?? '');
+    setCompare(activeCase?.rightsAnalysis ?? null);
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function persistJudgment(text: string) {
+    if (!activeCase) return;
+    if ((activeCase.rightsJudgment ?? '') === text) return;
+    updateCase(activeCase.id, { rightsJudgment: text });
+  }
+
+  function onJudgmentChange(text: string) {
+    setJudgment(text);
+  }
+
+  useEffect(() => {
+    if (!activeCase) return;
+    const timer = setTimeout(() => {
+      if ((activeCase.rightsJudgment ?? '') === judgment) return;
+      updateCase(activeCase.id, { rightsJudgment: judgment });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [judgment, activeCase, updateCase]);
 
   function onFiles(list: FileList | null) {
     if (!list?.length) return;
@@ -51,6 +67,7 @@ export default function RightsAnalysisPage() {
     const checklist = buildChecklist(merged, activeCase.checklist);
     updateCase(activeCase.id, {
       rightsAnalysis: next,
+      rightsJudgment: judgment,
       riskFlags: merged,
       checklist,
       stage: afterRiskFlagsSaved(activeCase.stage),
@@ -60,6 +77,7 @@ export default function RightsAnalysisPage() {
   async function analyze() {
     setLoading(true);
     setError('');
+    persistJudgment(judgment);
     setCompare({ analyzedAt: new Date().toISOString() });
     try {
       const form = new FormData();
@@ -177,7 +195,9 @@ export default function RightsAnalysisPage() {
             id="judgment"
             rows={5}
             value={judgment}
-            onChange={(e) => setJudgment(e.target.value)}
+            onChange={(e) => onJudgmentChange(e.target.value)}
+            onBlur={() => persistJudgment(judgment)}
+            placeholder="예) 대항력 있는 임차인 없음, 선순위 근저당 1건이 말소기준권리로 판단됨"
           />
         </div>
         <button
@@ -209,6 +229,15 @@ export default function RightsAnalysisPage() {
           loading={loading && !compare?.claude}
           loadingTitle="AI 권리분석"
         />
+      ) : null}
+
+      {judgment.trim() && compare?.claude ? (
+        <Section title="본인이 판단한 권리분석 결과">
+          <div className="judgment-saved-box">{judgment}</div>
+          <p className="field-hint">
+            입찰사건에 저장됩니다. 다른 메뉴를 갔다 와도 유지됩니다.
+          </p>
+        </Section>
       ) : null}
 
       <Disclaimer>

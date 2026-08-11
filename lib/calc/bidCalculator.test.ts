@@ -18,6 +18,26 @@ describe('calcBid', () => {
     expect(result.grossProfit).toBeCloseTo(580_000_000 * 0.055, -2);
     expect(result.netYield).toBeGreaterThan(0);
   });
+
+  it('조건부 비용만큼 입찰가를 낮춘다', () => {
+    const base = calcBid({
+      sellPrice: 580_000_000,
+      months: 6,
+      loanRate: 0.045,
+      margin: 0.055,
+      costRate: 0.05,
+    });
+    const withExtra = calcBid({
+      sellPrice: 580_000_000,
+      months: 6,
+      loanRate: 0.045,
+      margin: 0.055,
+      costRate: 0.05,
+      conditionalExtra: 5_000_000,
+    });
+    expect(withExtra.bidPrice).toBe(base.bidPrice - 5_000_000);
+    expect(withExtra.interestCost).toBeLessThan(base.interestCost);
+  });
 });
 
 describe('marginLabelText', () => {

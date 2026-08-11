@@ -1,4 +1,5 @@
 import type { CaseFile, CreateCaseInput } from '@/types/case';
+import { loadEntryProfile } from '@/lib/entryProfile';
 
 export const CASES_KEY = 'gyeongmaejigi:cases';
 export const ACTIVE_CASE_KEY = 'gyeongmaejigi:activeCaseId';
@@ -13,13 +14,25 @@ export interface CaseStore {
   setActiveId(id: string | null): void;
 }
 
+function migrateCase(raw: CaseFile): CaseFile {
+  const track = raw.track ?? 'bidding';
+  return {
+    ...raw,
+    track,
+    bidOutcome:
+      raw.bidOutcome ??
+      (raw.stage === 'E' || raw.stage === 'done' ? 'won' : 'pending'),
+  };
+}
+
 function readCases(): CaseFile[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(CASES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as CaseFile[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(migrateCase);
   } catch {
     return [];
   }
@@ -49,21 +62,42 @@ export const localCaseStore: CaseStore = {
 
   create(input) {
     const cases = readCases();
+    const track = input.track ?? 'bidding';
+    const profile = loadEntryProfile();
+
     const created: CaseFile = {
       id: createId(),
       name: input.name.trim(),
-      caseNumber: input.caseNumber.trim(),
-      stage: 'A',
-      appraisalValue: input.appraisalValue,
-      auctionDate: input.auctionDate,
+      caseNumber: input.caseNumber?.trim() ?? '',
+      courtCode: input.courtCode?.trim() || undefined,
+      courtName: input.courtName?.trim() || undefined,
+      address: input.address?.trim() || undefined,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      stage: track === 'eviction' ? 'E' : 'A',
+      track,
+      appraisalValue: input.appraisalValue ?? 0,
+      auctionDate: input.auctionDate ?? '',
+      auctionRound: input.auctionRound,
+      bidDepositRate: input.bidDepositRate,
+      minimumSalePrice: input.minimumSalePrice,
+      bidDepositAmount: input.bidDepositAmount,
+      clientLabel: input.clientLabel?.trim() || undefined,
+      bidOutcome: track === 'eviction' ? 'won' : 'pending',
       riskFlags: [],
       checklist: [],
+      ...(track === 'bidding' && profile
+        ? {
+            entryMatchInputs: profile.inputs,
+            entryMatchResult: profile.result,
+            stage: profile.result ? 'B' : 'A',
+          }
+        : {}),
     };
+
     cases.unshift(created);
     writeCases(cases);
-    if (!localStorage.getItem(ACTIVE_CASE_KEY)) {
-      localStorage.setItem(ACTIVE_CASE_KEY, created.id);
-    }
+    localStorage.setItem(ACTIVE_CASE_KEY, created.id);
     return created;
   },
 

@@ -100,9 +100,24 @@ const RIGHTS_SYSTEM_PROMPT_CORE = `당신은 경매지기의 권리분석 어시
 
 # 출력 형식
 
-다른 설명 없이 아래 JSON 스키마로만 응답하세요. 한국어로 작성하세요. 코드펜스·일반 마크다운 금지. 단, note 필드만 아래 인라인 서식을 사용하세요.
+다른 설명 없이 아래 JSON 스키마로만 응답하세요. 한국어로 작성하세요. 코드펜스·일반 마크다운 금지. \`expertGuide\`와 note 필드만 아래 인라인 서식을 사용하세요.
+
+# expertGuide (종합 권리분석 안내 — 필수)
+
+\`riskFlags\` 체크리스트와 별도로, **경매 권리분석 전문가가 경매 초보 입찰자에게 이 물건의 권리관계를 일목요연하게 설명**하듯 \`expertGuide\`를 작성하세요.
+
+- 분량: **800~1,500자**, 4~6개 단락. 각 단락은 \`**소제목** —\`으로 시작한 뒤 본문을 이어 쓰세요.
+- 반드시 다룰 내용(문서 근거 있는 것만):
+  1. **한눈에 보는 이 물건** — 말소기준권리·선순위 부담의 핵심 한 줄 요약
+  2. **말소되는 것 vs 남는 것** — 경매로 소멸·인수될 수 있는 권리를 초보자 언어로
+  3. **임차·배당에서 꼭 볼 것** — 대항력·배당요구·최우선변제 등 실무상 중요 포인트
+  4. **입찰 전 꼭 확인할 것** — documentsMissing·warning 항목을 실행 가능한 체크리스트로
+  5. **종합 정리** — 위험도 톤(확정 금지), 입찰 시 스스로 지켜야 할 조건이 있으면 명시
+- 사용자 본인 판단을 제공받은 경우 마지막 단락에 **본인 판단과의 대조**를 2~3문장으로 추가하세요.
+- 투자 권유·"안전하다/입찰하라" 금지. \`**핵심**\`, \`!!경고!!\` 서식은 note와 동일 규칙.
 
 {
+  "expertGuide": "**한눈에 보는 이 물건** — ...\\n\\n**말소되는 것 vs 남는 것** — ...",
   "documentsProvided": ["등기부등본", "토지등기", "매각물건명세서"],
   "documentsMissing": ["현황조사서"],
   "riskFlags": [
@@ -146,6 +161,7 @@ const RIGHTS_SYSTEM_PROMPT_CORE = `당신은 경매지기의 권리분석 어시
 }
 
 각 필드 설명:
+- expertGuide: 위 "expertGuide" 절 지침에 따른 종합 안내 전문. 필수.
 - label: 체크리스트 8개 항목 중 하나 (한국어 그대로)
 - status: "ok" | "warning" | "mismatch" 중 하나
 - note: 사용자에게 보여줄 한두 문장~짧은 단락 설명. 확정적 어조 금지. **인라인 서식(필수):**
@@ -211,11 +227,16 @@ export function buildRightsUserPrompt(payload: RightsLlmPayload): string {
   const judgment = hasJudgment
     ? payload.judgment.trim()
     : '(본인 판단 미입력 — mismatch 사용 금지, 독립 분석만)';
-  const doc =
-    payload.documentText.trim() ||
-    (payload.pdfs?.length
-      ? '(PDF 원본이 메시지에 첨부됨 — 문서 내용을 직접 읽고 분석하세요)'
-      : '(문서 본문·PDF 없음 — 제공되지 않은 문서는 documentsMissing에 넣고, 해당 항목은 문서 미제공으로 확인 불가로 표시)');
+  const hasPdfs = Boolean(payload.pdfs?.length);
+  const pastedText = payload.documentText.trim();
+  const doc = pastedText
+    ? pastedText
+    : hasPdfs
+      ? '(PDF 원본이 메시지에 첨부됨 — 첨부 PDF를 직접 읽고 표·도장·레이아웃까지 반영해 분석하세요. 추출 텍스트는 제공되지 않았습니다.)'
+      : '(문서 본문·PDF 없음 — 제공되지 않은 문서는 documentsMissing에 넣고, 해당 항목은 문서 미제공으로 확인 불가로 표시)';
+  const docSection = hasPdfs && !pastedText
+    ? '## 문서 (PDF 원본 첨부)'
+    : '## 문서 텍스트 (붙여넣기·txt/md)';
 
   return `## 첨부 파일명
 ${files}
@@ -223,16 +244,17 @@ ${files}
 ## 본인이 판단한 권리분석 결과
 ${judgment}
 
-## 문서 텍스트 (추출본 또는 붙여넣기)
+${docSection}
 ${doc}
 
-위 자료를 바탕으로 필수 체크리스트 8개 항목을 모두 포함한 JSON만 출력하세요.`;
+위 자료를 바탕으로 필수 체크리스트 8개 항목과 expertGuide 종합 안내를 모두 포함한 JSON만 출력하세요.`;
 }
 
 export type ParsedRightsAnalysis = {
   documentsProvided: string[];
   documentsMissing: string[];
   riskFlags: RiskFlag[];
+  expertGuide: string;
   /** UI 요약용 — documents 목록으로 생성 */
   summary: string;
 };
@@ -290,6 +312,7 @@ export function parseRightsAnalysisJson(
   }
 
   const data = JSON.parse(jsonText) as {
+    expertGuide?: string;
     documentsProvided?: string[];
     documentsMissing?: string[];
     summary?: string;
@@ -399,13 +422,15 @@ export function parseRightsAnalysisJson(
   const documentsMissing = Array.isArray(data.documentsMissing)
     ? data.documentsMissing.map(String)
     : [];
+  const expertGuide = String(data.expertGuide ?? '').trim();
 
   return {
     documentsProvided,
     documentsMissing,
     riskFlags,
+    expertGuide,
     // 문서 제공/미제공은 UI에서 documentsProvided·documentsMissing으로 표시
-    summary: data.summary?.trim() || '',
+    summary: data.summary?.trim() || expertGuide.slice(0, 120),
   };
 }
 

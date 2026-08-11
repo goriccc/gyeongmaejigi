@@ -1,5 +1,10 @@
 export type CaseStage = 'A' | 'B' | 'C' | 'D' | 'E' | 'done';
 
+/** 입찰 준비(A~D) vs 명도 전용(E) */
+export type CaseTrack = 'bidding' | 'eviction';
+
+export type BidOutcome = 'pending' | 'won' | 'lost' | 'skipped';
+
 export type ChecklistItem = {
   id: string;
   label: string;
@@ -21,6 +26,8 @@ export type RiskFlag = {
 
 export type ParsedRightsFields = {
   summary: string;
+  /** 초보자용 종합 권리분석 안내 (전문가 톤) */
+  expertGuide?: string;
   documentsProvided: string[];
   documentsMissing: string[];
   riskFlags: RiskFlag[];
@@ -30,6 +37,7 @@ export type ModelAnalysisResult = {
   model: 'claude-opus-5';
   label: string;
   summary: string;
+  expertGuide?: string;
   documentsProvided?: string[];
   documentsMissing?: string[];
   riskFlags: RiskFlag[];
@@ -73,50 +81,84 @@ export type LoanOffer = {
   prepayPeriod: number;
 };
 
+export type EntryMatchInputs = {
+  seedMoney: number;
+  houseCount: 0 | 1 | 2 | 3;
+  creditState: '우수' | '보통' | '주의';
+  propType: '아파트' | '다세대' | '다가구';
+  lenderType: '1금융권' | '2금융권';
+  /** 물건 소재지 규제구분 (취득세용) */
+  regZone?: 'none' | 'adjusted' | 'overheated';
+  /** 수도권 여부 (LTV 6.27대책용) */
+  sudogwon?: boolean;
+  /** 저가주택 특례 해당 여부 */
+  lowPriceException?: boolean;
+  /** 처분조건부(일시적 2주택) */
+  dispositionPlanned?: boolean;
+  /** 생애최초 주택구입자 (무주택일 때만) */
+  firstTimeBuyer?: boolean;
+  /** 서민·실수요자 요건 (무주택일 때만) */
+  realDemand?: boolean;
+};
+
+export type EntryMatchResult = {
+  bidCapacity: number;
+  ltvApplied: number;
+  dsrCapacity: number;
+};
+
 export type CaseFile = {
   id: string;
   name: string;
   caseNumber: string;
   stage: CaseStage;
+  /** 입찰 준비 vs 명도 전용 — 구버전 데이터는 bidding으로 간주 */
+  track: CaseTrack;
   appraisalValue: number;
   auctionDate: string;
+  /** 금번 매각 회차 (유찰횟수+1) */
+  auctionRound?: number;
+  /** 입찰보증금율 — 보통 10%, 일부 20% */
+  bidDepositRate?: 10 | 20;
+  minimumSalePrice?: number;
+  bidDepositAmount?: number;
+  clientLabel?: string;
+  /** 입찰 결과 — bidding track 전용 */
+  bidOutcome?: BidOutcome;
+  /** 법원경매정보 법원코드 (예: B000210) */
+  courtCode?: string;
+  courtName?: string;
+  /** 소재지 (법원경매정보) */
+  address?: string;
+  latitude?: number;
+  longitude?: number;
   riskFlags: RiskFlag[];
-  /** 모듈 B 이중 LLM 대조 결과 (원본 문서·대화는 저장하지 않음) */
+  /** 본인이 판단한 권리분석 결과 (사건별 저장) */
+  rightsJudgment?: string;
+  /** 모듈 B LLM 대조 결과 (원본 문서·대화는 저장하지 않음) */
   rightsAnalysis?: RightsAnalysisCompare;
   checklist: ChecklistItem[];
-  entryMatchInputs?: {
-    seedMoney: number;
-    houseCount: 0 | 1 | 2 | 3;
-    creditState: '우수' | '보통' | '주의';
-    propType: '아파트' | '다세대' | '다가구';
-    lenderType: '1금융권' | '2금융권';
-    /** 물건 소재지 규제구분 (취득세용) */
-    regZone?: 'none' | 'adjusted' | 'overheated';
-    /** 수도권 여부 (LTV 6.27대책용) */
-    sudogwon?: boolean;
-    /** 저가주택 특례 해당 여부 */
-    lowPriceException?: boolean;
-    /** 처분조건부(일시적 2주택) */
-    dispositionPlanned?: boolean;
-    /** 생애최초 주택구입자 (무주택일 때만) */
-    firstTimeBuyer?: boolean;
-    /** 서민·실수요자 요건 (무주택일 때만) */
-    realDemand?: boolean;
-  };
-  entryMatchResult?: {
-    bidCapacity: number;
-    ltvApplied: number;
-    dsrCapacity: number;
-  };
+  entryMatchInputs?: EntryMatchInputs;
+  entryMatchResult?: EntryMatchResult;
   bidCalcInputs?: {
     sellPrice: number;
     months: number;
     loanRate: number;
     margin: number;
     costRate: number;
+    /** 미납관리비 (만원) */
+    unpaidMgmtFeeMan?: number;
+    /** 농어촌특별세 (만원) */
+    farmTaxMan?: number;
+    /** 수리비 (만원) */
+    repairCostMan?: number;
+    /** 강제집행비 (만원) */
+    forceExecCostMan?: number;
+    /** 공시가격·시가표준액 (원) — 국민주택채권 계산 */
+    officialPrice?: number;
   };
   loanOffers?: LoanOffer[];
-  /** 모듈 E 이중 LLM 결과 요약 (대화 원문은 저장하지 않음) */
+  /** 모듈 E LLM 결과 요약 (대화 원문은 저장하지 않음) */
   evictionCoach?: EvictionCoachCompare;
   evictionSummary?: {
     resistLevel: 'low' | 'mid' | 'high';
@@ -126,7 +168,18 @@ export type CaseFile = {
 
 export type CreateCaseInput = {
   name: string;
-  caseNumber: string;
-  appraisalValue: number;
-  auctionDate: string;
+  track?: CaseTrack;
+  caseNumber?: string;
+  courtCode?: string;
+  courtName?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  appraisalValue?: number;
+  auctionDate?: string;
+  auctionRound?: number;
+  bidDepositRate?: 10 | 20;
+  minimumSalePrice?: number;
+  bidDepositAmount?: number;
+  clientLabel?: string;
 };

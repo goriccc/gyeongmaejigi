@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ko } from '@/messages/ko';
 import { useCases } from '@/lib/hooks/useCases';
 import { SealMark } from './SealMark';
+import { countActiveCases } from '@/lib/caseUtils';
 
 const LINKS = [
   { href: '/', target: 'dashboard', label: ko.nav.dashboard },
@@ -23,7 +24,7 @@ function isActive(pathname: string, href: string) {
 export function TopNav() {
   const pathname = usePathname();
   const { cases } = useCases();
-  const activeCount = cases.filter((c) => c.stage !== 'done').length;
+  const { bidding, eviction } = countActiveCases(cases);
 
   return (
     <header className="topnav">
@@ -43,7 +44,7 @@ export function TopNav() {
           </Link>
         ))}
       </nav>
-      <span className="tn-status">{ko.common.activeCount(activeCount)}</span>
+      <span className="tn-status">{ko.common.activeCount(bidding, eviction)}</span>
     </header>
   );
 }

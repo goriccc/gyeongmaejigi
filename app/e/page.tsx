@@ -8,6 +8,7 @@ import { useCases } from '@/lib/hooks/useCases';
 import { readJsonSafe } from '@/lib/http/readJsonSafe';
 import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
 import { ko } from '@/messages/ko';
+import { normalizeCaseTrack } from '@/lib/caseUtils';
 import type { EvictionCoachCompare, EvictionModelResult } from '@/types/case';
 
 type EvictionStreamEvent =
@@ -15,7 +16,8 @@ type EvictionStreamEvent =
   | { type: 'done'; analyzedAt: string }
   | { type: 'error'; error: string };
 
-const DEFAULT_PASTE = `점유자: 안녕하세요, 낙찰받으신 분 맞으시죠. 저 이사 갈 데를 아직 못 구했는데... 시간을 좀 더 주실 수 있나요?
+const PASTE_PLACEHOLDER = `예)
+점유자: 안녕하세요, 낙찰받으신 분 맞으시죠. 저 이사 갈 데를 아직 못 구했는데... 시간을 좀 더 주실 수 있나요?
 나: 네 맞습니다. 상황은 이해합니다만 잔금일이 정해져 있어서요. 이사 계획을 좀 더 구체적으로 말씀해주실 수 있을까요?
 점유자: 한 달 정도만 더 여유를 주시면 안될까요? 저도 이사 갈 형편이 넉넉지 않아서 걱정이 많아요.`;
 
@@ -137,7 +139,7 @@ function ContentProofBlock({
 
 export default function EvictionCoachPage() {
   const { activeCase, updateCase } = useCases();
-  const [paste, setPaste] = useState(DEFAULT_PASTE);
+  const [paste, setPaste] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [compare, setCompare] = useState<EvictionCoachCompare | null>(
@@ -265,6 +267,49 @@ export default function EvictionCoachPage() {
     updateCase(activeCase.id, { stage: 'done' });
   }
 
+  function promoteToE() {
+    if (!activeCase) return;
+    updateCase(activeCase.id, { stage: 'E', bidOutcome: 'won' });
+  }
+
+  function renderEvictionBanner() {
+    if (!activeCase) {
+      return (
+        <div className="banner banner-soft">{ko.evictionBanner.noCase}</div>
+      );
+    }
+
+    const track = normalizeCaseTrack(activeCase);
+
+    if (track === 'eviction') {
+      return (
+        <div className="banner banner-soft">{ko.evictionBanner.ready}</div>
+      );
+    }
+
+    if (activeCase.stage === 'E' || activeCase.stage === 'done') {
+      return null;
+    }
+
+    return (
+      <div className="banner">
+        {ko.evictionBanner.biddingPrep}
+        {activeCase.stage === 'D' ? (
+          <>
+            {' '}
+            <button
+              type="button"
+              className="btn-text banner-inline-btn"
+              onClick={promoteToE}
+            >
+              {ko.evictionBanner.promote}
+            </button>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="chapter-mark">제5장 · 명도 코칭</div>
@@ -279,12 +324,7 @@ export default function EvictionCoachPage() {
         안내입니다.
       </p>
 
-      {activeCase?.stage !== 'E' && activeCase?.stage !== 'done' ? (
-        <div className="banner">
-          명도 단계는 낙찰 후 제4장에서 &quot;낙찰됨 · 명도 단계로 전환&quot;
-          버튼을 눌러 진입합니다.
-        </div>
-      ) : null}
+      {renderEvictionBanner()}
 
       <Section
         title="대화 내용 붙여넣기"
@@ -296,7 +336,7 @@ export default function EvictionCoachPage() {
             style={{ minHeight: 150 }}
             value={paste}
             onChange={(e) => setPaste(e.target.value)}
-            placeholder={`예)\n점유자: ...\n나: ...`}
+            placeholder={PASTE_PLACEHOLDER}
           />
         </div>
         <button

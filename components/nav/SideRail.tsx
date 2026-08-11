@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ko } from '@/messages/ko';
 import { useCases } from '@/lib/hooks/useCases';
-import { getChapterProgress } from '@/lib/stage';
+import { getCaseChapterProgress, getChapterProgress } from '@/lib/stage';
 
 const ITEMS = [
-  { href: '/', chapter: 'dashboard' as const, num: '표지', name: ko.rail.cover },
+  { href: '/', chapter: 'dashboard' as const, num: '설정', name: ko.rail.cover },
   { href: '/a', chapter: 'A' as const, num: '제1장', name: ko.rail.ch1 },
   { href: '/b', chapter: 'B' as const, num: '제2장', name: ko.rail.ch2 },
   { href: '/c', chapter: 'C' as const, num: '제3장', name: ko.rail.ch3 },
@@ -31,17 +31,25 @@ export function SideRail() {
         const progress =
           item.chapter === 'dashboard'
             ? null
-            : getChapterProgress(stage, item.chapter);
+            : activeCase
+              ? getCaseChapterProgress(activeCase, item.chapter)
+              : getChapterProgress(stage, item.chapter, 'bidding');
 
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`rail-item${active ? ' active' : ''}`}
+            className={`rail-item${active ? ' active' : ''}${progress === '건너뜀' ? ' is-skipped' : ''}`}
           >
             <span className="r-num">{item.num}</span>
             <span className="r-name">{item.name}</span>
-            {progress ? <span className="r-stage">{progress}</span> : null}
+            {progress ? (
+              <span
+                className={`r-stage${progress === '건너뜀' ? ' muted' : ''}`}
+              >
+                {progress}
+              </span>
+            ) : null}
           </Link>
         );
       })}

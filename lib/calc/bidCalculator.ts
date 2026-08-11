@@ -11,6 +11,8 @@ export type BidCalcInput = {
   margin: number;
   /** 취득 비용률(비율) */
   costRate: number;
+  /** 조건부 추가비용 합계(원) — 입찰가에서 선차감 */
+  conditionalExtra?: number;
 };
 
 export type BidCalcResult = {
@@ -22,6 +24,7 @@ export type BidCalcResult = {
   interestCost: number;
   invested: number;
   costAmt: number;
+  conditionalExtra: number;
 };
 
 /**
@@ -30,10 +33,20 @@ export type BidCalcResult = {
  * @returns 역산 결과
  */
 export function calcBid(input: BidCalcInput): BidCalcResult {
-  const { sellPrice, months, loanRate, margin, costRate } = input;
+  const {
+    sellPrice,
+    months,
+    loanRate,
+    margin,
+    costRate,
+    conditionalExtra = 0,
+  } = input;
   const costAmt = sellPrice * costRate;
   const marginAmt = sellPrice * margin;
-  const bidPrice = sellPrice - costAmt - marginAmt;
+  const bidPrice = Math.max(
+    0,
+    sellPrice - costAmt - marginAmt - conditionalExtra,
+  );
   const grossProfit = marginAmt;
   const loanPrincipal = bidPrice * ASSUMED_LTV;
   const interestCost = loanPrincipal * loanRate * (months / 12);
@@ -50,6 +63,7 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     interestCost,
     invested,
     costAmt,
+    conditionalExtra,
   };
 }
 

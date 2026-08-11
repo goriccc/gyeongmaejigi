@@ -103,11 +103,24 @@ export function ModelResultBlock({
                 : null}
             </p>
           )}
-          {result.summary ? (
+          {result.expertGuide ? (
+            <div className="rights-expert-guide">
+              <h3 className="rights-expert-guide-title">종합 권리분석 안내</h3>
+              {result.expertGuide
+                .split(/\n\n+/)
+                .filter(Boolean)
+                .map((para, idx) => (
+                  <p key={idx} className="rights-expert-guide-para">
+                    <RichNote text={para} />
+                  </p>
+                ))}
+            </div>
+          ) : result.summary ? (
             <p className="s-note" style={{ marginBottom: 18 }}>
               {result.summary}
             </p>
           ) : null}
+          <h3 className="rights-checklist-title">필수 8항목 점검</h3>
           {result.riskFlags.map((flag) => {
             const badge = statusBadge(flag);
             const noteParts = [flag.note];

@@ -1,0 +1,412 @@
+import type { CourtAuctionCasePayload } from '@/lib/auction/mapCaseLookup';
+import {
+  parseBidDepositAmount,
+  parseBidDepositRate,
+} from '@/lib/auction/bidDeposit';
+import { parseAuctionRound, parseFailedBidCount } from '@/lib/auction/auctionRound';
+import {
+  formatYmd,
+  normalizeCaseNumber,
+  parseAmount,
+  stripHtml,
+} from '@/lib/auction/caseNumberFormat';
+
+const BASE_URL = 'https://www.courtauction.go.kr';
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+const ENDPOINTS = {
+  courts: {
+    path: '/pgj/pgjComm/selectCortOfcCdLst.on',
+    warmup:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ143M01.xml&pgjId=143M01',
+    referer:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ143M01.xml&pgjId=143M01',
+    submissionid: 'mf_wfm_mainFrame_sbm_selectCortOfcCdLst',
+  },
+  caseDetail: {
+    path: '/pgj/pgj15A/selectAuctnCsSrchRslt.on',
+    warmup:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00',
+    referer:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00',
+    submissionid: 'mf_wfm_mainFrame_sbm_selectCsDtlInf',
+  },
+  propertySearch: {
+    path: '/pgj/pgjsearch/searchControllerMain.on',
+    warmup:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml&pgjId=151F00',
+    referer:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml&pgjId=151F00',
+    submissionid: 'mf_wfm_mainFrame_sbm_selectGdsDtlSrch',
+  },
+} as const;
+
+type EndpointKey = keyof typeof ENDPOINTS;
+
+function nullIfBlank(value: unknown): string | null {
+  const text = stripHtml(value);
+  return text || null;
+}
+
+function parseScheduleRow(row: Record<string, unknown>) {
+  const failedBidCount = parseFailedBidCount(
+    row.flbdNcnt ?? row.yuchalCnt ?? row.usflbdNcnt,
+  );
+  return {
+    saleDate: formatYmd(
+      row.dspslDxdyYmd ?? row.maeGiil ?? row.dspslYmd ?? row.dxdyYmd,
+    ),
+    appraisedPrice: parseAmount(
+      row.aeeEvlAmt ?? row.gamevalAmt ?? row.aeeEvlAm ?? row.appraisalAmt,
+    ),
+    minimumSalePrice: parseAmount(row.lwsDspslPrc ?? row.minmaePrice),
+    depositRate: parseBidDepositRate(
+      row.grntRt ?? row.ipchalGrntRt ?? row.bidGrntRt ?? row.grntRate,
+    ),
+    depositAmount: parseBidDepositAmount(
+      row.grntAmt ?? row.ipchalGrntAmt ?? row.bidGrntAmt ?? row.grntAm,
+    ),
+    failedBidCount,
+    auctionRound: parseAuctionRound(row),
+    resultCode: nullIfBlank(row.rsltCd ?? row.mulStatcd ?? row.statCd),
+  };
+}
+
+function extractScheduleLists(data: Record<string, unknown>): unknown[] {
+  const preferred = [
+    data.dlt_rletCsGdsDtsDxdyInf,
+    data.dlt_dspslDxdyInf,
+    data.dlt_dxdyDtsLst,
+  ];
+  for (const list of preferred) {
+    if (Array.isArray(list) && list.length > 0) return list;
+  }
+
+  for (const value of Object.values(data)) {
+    if (!Array.isArray(value) || value.length === 0) continue;
+    const row = value[0];
+    if (!row || typeof row !== 'object') continue;
+    const keys = Object.keys(row as Record<string, unknown>);
+    if (
+      keys.some((k) =>
+        /dspsl|maeGiil|aeeEvl|gameval|lwsDspsl|rslt/i.test(k),
+      )
+    ) {
+      return value;
+    }
+  }
+  return [];
+}
+
+function parsePropertyRow(row: Record<string, unknown>) {
+  const failedBidCount = parseFailedBidCount(row.yuchalCnt ?? row.flbdNcnt);
+  return {
+    saleDate: formatYmd(row.maeGiil ?? row.dspslDxdyYmd),
+    appraisedPrice: parseAmount(row.gamevalAmt ?? row.aeeEvlAmt),
+    minimumSalePrice: parseAmount(row.minmaePrice ?? row.lwsDspslPrc),
+    depositRate: parseBidDepositRate(row.grntRt ?? row.ipchalGrntRt),
+    depositAmount: parseBidDepositAmount(row.grntAmt ?? row.ipchalGrntAmt),
+    failedBidCount,
+    auctionRound: parseAuctionRound(row),
+    resultCode: nullIfBlank(row.mulStatcd ?? row.rsltCd),
+  };
+}
+
+class CourtAuctionClient {
+  private cookies = new Map<string, string>();
+  private warmed = new Set<string>();
+  private lastCallAt = 0;
+
+  private cookieHeader() {
+    return [...this.cookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+  }
+
+  private storeCookieLine(line: string) {
+    const seg = line.split(';')[0];
+    const eq = seg.indexOf('=');
+    if (eq > 0) {
+      this.cookies.set(seg.slice(0, eq).trim(), seg.slice(eq + 1).trim());
+    }
+  }
+
+  private ingestCookies(res: Response) {
+    if (typeof res.headers.getSetCookie === 'function') {
+      for (const line of res.headers.getSetCookie()) {
+        this.storeCookieLine(line);
+      }
+      return;
+    }
+    const raw = res.headers.get('set-cookie');
+    if (!raw) return;
+    for (const part of raw.split(/,(?=[^;]+=)/)) {
+      this.storeCookieLine(part);
+    }
+  }
+
+  private async warmup(key: EndpointKey) {
+    const ep = ENDPOINTS[key];
+    if (this.warmed.has(ep.warmup)) return;
+    const res = await fetch(`${BASE_URL}${ep.warmup}`, {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'text/html,application/xhtml+xml',
+        Referer: `${BASE_URL}/`,
+      },
+    });
+    this.ingestCookies(res);
+    this.warmed.add(ep.warmup);
+  }
+
+  private async throttle() {
+    const elapsed = Date.now() - this.lastCallAt;
+    if (elapsed < 1200) {
+      await new Promise((r) => setTimeout(r, 1200 - elapsed));
+    }
+    this.lastCallAt = Date.now();
+  }
+
+  private async postJson<T>(key: EndpointKey, body: unknown): Promise<T> {
+    await this.warmup(key);
+    await this.throttle();
+    const ep = ENDPOINTS[key];
+    const res = await fetch(`${BASE_URL}${ep.path}`, {
+      method: 'POST',
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'application/json, text/javascript, */*; q=0.01',
+        'Content-Type': 'application/json;charset=UTF-8',
+        Origin: BASE_URL,
+        Referer: `${BASE_URL}${ep.referer}`,
+        'X-Requested-With': 'XMLHttpRequest',
+        submissionid:
+          'submissionid' in ep && ep.submissionid
+            ? ep.submissionid
+            : 'mf_wfm_mainFrame_sbm_selectGdsDtlSrch',
+        'sc-userid': 'SYSTEM',
+        ...(this.cookieHeader() ? { Cookie: this.cookieHeader() } : {}),
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+    this.ingestCookies(res);
+
+    const rawText = await res.text();
+    let payload: { data?: { ipcheck?: boolean }; message?: string };
+    try {
+      payload = JSON.parse(rawText) as typeof payload;
+    } catch {
+      throw new Error(
+        `법원경매정보 응답 형식 오류 (${res.status}). 잠시 후 다시 시도해 주세요.`,
+      );
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        payload.message || `법원경매정보 요청 실패 (${res.status})`,
+      );
+    }
+
+    if (payload?.data?.ipcheck === false) {
+      const err = new Error(
+        payload.message ||
+          '법원경매정보 사이트 접속이 일시 제한되었습니다. 잠시 후 다시 시도해 주세요.',
+      );
+      (err as Error & { code?: string }).code = 'BLOCKED';
+      throw err;
+    }
+    return payload as T;
+  }
+
+  async getCourtCodes() {
+    const raw = await this.postJson<{
+      data?: { result?: Array<Record<string, unknown>> };
+    }>('courts', {});
+    const list = raw.data?.result ?? [];
+    return list
+      .map((row) => ({
+        code: nullIfBlank(row.cortOfcCd),
+        name: nullIfBlank(row.cortOfcNm),
+        branchName: nullIfBlank(row.cortSptNm),
+      }))
+      .filter((c) => c.code && c.name) as Array<{
+      code: string;
+      name: string;
+      branchName: string | null;
+    }>;
+  }
+
+  private async searchPropertyByCase(courtCode: string, caseNumber: string) {
+    const raw = await this.postJson<{
+      data?: { dlt_srchResult?: Array<Record<string, unknown>> };
+    }>('propertySearch', {
+      dma_pageInfo: {
+        pageNo: 1,
+        pageSize: 10,
+        bfPageNo: '',
+        startRowNo: '',
+        totalCnt: '',
+        totalYn: 'Y',
+        groupTotalCount: '',
+      },
+      dma_srchGdsDtlSrchInfo: {
+        rletDspslSpcCondCd: '',
+        bidDvsCd: '',
+        mvprpRletDvsCd: '00031R',
+        cortAuctnSrchCondCd: '0004601',
+        rprsAdongSdCd: '',
+        rprsAdongSggCd: '',
+        rprsAdongEmdCd: '',
+        rdnmSdCd: '',
+        rdnmSggCd: '',
+        rdnmNo: '',
+        mvprpDspslPlcAdongSdCd: '',
+        mvprpDspslPlcAdongSggCd: '',
+        mvprpDspslPlcAdongEmdCd: '',
+        rdDspslPlcAdongSdCd: '',
+        rdDspslPlcAdongSggCd: '',
+        rdDspslPlcAdongEmdCd: '',
+        cortOfcCd: courtCode,
+        jdbnCd: '',
+        execrOfcDvsCd: '',
+        lclDspslGdsLstUsgCd: '',
+        mclDspslGdsLstUsgCd: '',
+        sclDspslGdsLstUsgCd: '',
+        cortAuctnMbrsId: '',
+        aeeEvlAmtMin: '',
+        aeeEvlAmtMax: '',
+        lwsDspslPrcRateMin: '',
+        lwsDspslPrcRateMax: '',
+        flbdNcntMin: '',
+        flbdNcntMax: '',
+        objctArDtsMin: '',
+        objctArDtsMax: '',
+        mvprpArtclKndCd: '',
+        mvprpArtclNm: '',
+        mvprpAtchmPlcTypCd: '',
+        notifyLoc: 'off',
+        lafjOrderBy: '',
+        pgmId: 'PGJ151F01',
+        csNo: caseNumber,
+        cortStDvs: '1',
+        statNum: 1,
+      },
+    });
+
+    const rows = raw.data?.dlt_srchResult ?? [];
+    return rows.map((row) => parsePropertyRow(row));
+  }
+
+  async getCaseByCaseNumber(courtCode: string, caseNumber: string) {
+    const csNo = normalizeCaseNumber(caseNumber);
+    const raw = await this.postJson<{
+      status?: number;
+      message?: string | null;
+      data?: Record<string, unknown>;
+    }>('caseDetail', {
+      dma_srchCsDtlInf: { cortOfcCd: courtCode, csNo },
+    });
+
+    const data = raw.data;
+    if (!data || !data.dma_csBasInf) {
+      return {
+        found: false,
+        status: raw.status ?? null,
+        message: raw.message ?? null,
+      } satisfies CourtAuctionCasePayload;
+    }
+
+    const basis = data.dma_csBasInf as Record<string, unknown>;
+    let items = (
+      Array.isArray(data.dlt_rletCsDspslObjctLst)
+        ? data.dlt_rletCsDspslObjctLst
+        : []
+    ).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        address: nullIfBlank(r.userSt) || nullIfBlank(r.st),
+        appraisedPrice: parseAmount(
+          r.aeeEvlAmt ?? r.gamevalAmt ?? r.nvltEvalAmt,
+        ),
+        saleDate: formatYmd(r.dspslDxdyYmd ?? r.maeGiil),
+        failedBidCount: parseFailedBidCount(
+          r.flbdNcnt ?? r.yuchalCnt ?? r.usflbdNcnt,
+        ),
+        auctionRound: parseAuctionRound(r) ?? undefined,
+      };
+    });
+
+    let schedule = extractScheduleLists(data).map((row) =>
+      parseScheduleRow(row as Record<string, unknown>),
+    );
+
+    const hasAppraisal =
+      items.some((i) => (i.appraisedPrice ?? 0) > 0) ||
+      schedule.some((s) => (s.appraisedPrice ?? 0) > 0);
+    const hasSaleDate =
+      items.some((i) => i.saleDate) || schedule.some((s) => s.saleDate);
+    const hasMinPrice = schedule.some((s) => (s.minimumSalePrice ?? 0) > 0);
+    const hasRound =
+      schedule.some((s) => s.auctionRound) ||
+      items.some((i) => i.auctionRound);
+
+    if (!hasAppraisal || !hasSaleDate || !hasMinPrice || !hasRound) {
+      try {
+        const fromSearch = await this.searchPropertyByCase(courtCode, csNo);
+        if (fromSearch.length > 0) {
+          schedule = [...schedule, ...fromSearch];
+          const best =
+            fromSearch.find((r) => r.appraisedPrice && r.saleDate) ??
+            fromSearch[0];
+          if (best && items.length > 0) {
+            items = items.map((item, index) =>
+              index === 0
+                ? {
+                    ...item,
+                    appraisedPrice:
+                      item.appraisedPrice ?? best.appraisedPrice ?? null,
+                    saleDate: item.saleDate ?? best.saleDate ?? null,
+                    failedBidCount:
+                      item.failedBidCount ?? best.failedBidCount ?? null,
+                    auctionRound:
+                      item.auctionRound ?? best.auctionRound ?? undefined,
+                  }
+                : item,
+            );
+          }
+        }
+      } catch {
+        // 물건 검색 fallback 실패는 무시
+      }
+    }
+
+    return {
+      found: true,
+      status: raw.status ?? null,
+      message: raw.message ?? null,
+      caseInfo: {
+        courtCode: nullIfBlank(basis.cortOfcCd),
+        courtName: nullIfBlank(basis.cortOfcNm),
+        caseNumber: nullIfBlank(basis.csNo),
+        userCaseNumber:
+          nullIfBlank(basis.userCsNo) || nullIfBlank(basis.userReltCsNo),
+        caseName: nullIfBlank(basis.csNm),
+      },
+      items,
+      schedule,
+    } satisfies CourtAuctionCasePayload;
+  }
+}
+
+let singleton: CourtAuctionClient | null = null;
+
+export function getCourtAuctionClient() {
+  if (!singleton) singleton = new CourtAuctionClient();
+  return singleton;
+}
+
+export {
+  buildTakyungCaseNumber,
+  defaultAuctionYear,
+  normalizeCaseNumber,
+  parseTakyungCaseNumber,
+} from '@/lib/auction/caseNumberFormat';

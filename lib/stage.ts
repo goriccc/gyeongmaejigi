@@ -1,8 +1,14 @@
-import type { CaseFile, CaseStage } from '@/types/case';
+import type { CaseFile, CaseStage, CaseTrack } from '@/types/case';
+import { normalizeCaseTrack } from '@/lib/caseUtils';
 
 export type ChapterKey = 'dashboard' | 'A' | 'B' | 'C' | 'D' | 'E';
 
-export type ChapterProgress = '완료' | '진행중' | '시작 전' | '해당 없음';
+export type ChapterProgress =
+  | '완료'
+  | '진행중'
+  | '시작 전'
+  | '해당 없음'
+  | '건너뜀';
 
 const STAGE_ORDER: CaseStage[] = ['A', 'B', 'C', 'D', 'E', 'done'];
 
@@ -11,20 +17,28 @@ function stageIndex(stage: CaseStage): number {
 }
 
 /**
- * 현재 stage 기준으로 각 장의 진행 상태를 반환합니다.
- * D→E 전환 전에는 제5장이 "해당 없음"입니다.
+ * 현재 stage·track 기준으로 각 장의 진행 상태를 반환합니다.
  */
 export function getChapterProgress(
   stage: CaseStage,
   chapter: Exclude<ChapterKey, 'dashboard'>,
+  track: CaseTrack = 'bidding',
 ): ChapterProgress {
+  if (track === 'eviction') {
+    if (chapter === 'E') {
+      if (stage === 'done') return '완료';
+      return '진행중';
+    }
+    return '건너뜀';
+  }
+
   if (stage === 'done') {
     return '완료';
   }
 
   if (chapter === 'E') {
     if (stage === 'E') return '진행중';
-    return '해당 없음';
+    return '시작 전';
   }
 
   const current = stageIndex(stage);
@@ -33,6 +47,17 @@ export function getChapterProgress(
   if (target < current) return '완료';
   if (target === current) return '진행중';
   return '시작 전';
+}
+
+export function getCaseChapterProgress(
+  caseFile: CaseFile,
+  chapter: Exclude<ChapterKey, 'dashboard'>,
+): ChapterProgress {
+  return getChapterProgress(
+    caseFile.stage,
+    chapter,
+    normalizeCaseTrack(caseFile),
+  );
 }
 
 /**
@@ -62,19 +87,32 @@ export function afterBidCalcSaved(stage: CaseStage): CaseStage {
 }
 
 export function stageBadgeLabel(caseFile: CaseFile): string {
+  const track = normalizeCaseTrack(caseFile);
+
+  if (caseFile.stage === 'done') {
+    return track === 'eviction' ? '명도 완료' : '명도 완료';
+  }
+
+  if (track === 'eviction') {
+    return '명도 · 진행중';
+  }
+
+  if (caseFile.bidOutcome === 'lost') return '유찰';
+  if (caseFile.bidOutcome === 'skipped') return '입찰 안 함';
+
   switch (caseFile.stage) {
     case 'A':
-      return '제1장 · 진입매칭';
+      return '제1장 · 입찰사건';
     case 'B':
       return '제2장 · 대조체크중';
     case 'C':
       return '제3장 · 임장준비';
     case 'D':
-      return '제4장 · 입찰가계산';
+      return caseFile.bidOutcome === 'won'
+        ? '낙찰 · 명도 대기'
+        : '제4장 · 입찰가계산';
     case 'E':
       return '제5장 · 명도코칭';
-    case 'done':
-      return '명도 완료';
     default:
       return caseFile.stage;
   }
