@@ -1,4 +1,5 @@
 import { AFTER_TAX_FACTOR, ASSUMED_LTV } from '@/data/taxTable';
+import { effectiveSellPrice } from './buildingVat';
 
 /** 입찰가 계산 UI 기본값 (% 단위) */
 export const DEFAULT_BID_LOAN_RATE = 5;
@@ -32,6 +33,8 @@ export type BidCalcInput = {
   costRate: number;
   /** 조건부 추가비용 합계(원) — 입찰가에서 선차감 */
   conditionalExtra?: number;
+  /** 대형 건물분 부가세(원) — 세후수익에서 차감 */
+  buildingVat?: number;
 };
 
 export type BidCalcResult = {
@@ -44,6 +47,8 @@ export type BidCalcResult = {
   invested: number;
   costAmt: number;
   conditionalExtra: number;
+  buildingVat: number;
+  effectiveSellPrice: number;
 };
 
 /**
@@ -59,6 +64,7 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     margin,
     costRate,
     conditionalExtra = 0,
+    buildingVat = 0,
   } = input;
   const costAmt = sellPrice * costRate;
   const marginAmt = sellPrice * margin;
@@ -69,7 +75,8 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
   const grossProfit = marginAmt;
   const loanPrincipal = bidPrice * ASSUMED_LTV;
   const interestCost = loanPrincipal * loanRate * (months / 12);
-  const netProfit = grossProfit * AFTER_TAX_FACTOR - interestCost;
+  const vatAmt = Math.max(0, buildingVat);
+  const netProfit = grossProfit * AFTER_TAX_FACTOR - interestCost - vatAmt;
   const invested = bidPrice - loanPrincipal;
   const netYield = invested > 0 ? (netProfit / invested) * 100 : 0;
 
@@ -83,6 +90,8 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     invested,
     costAmt,
     conditionalExtra,
+    buildingVat: vatAmt,
+    effectiveSellPrice: effectiveSellPrice(sellPrice, vatAmt),
   };
 }
 

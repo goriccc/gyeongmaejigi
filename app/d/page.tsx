@@ -8,6 +8,18 @@ import { ResultPanel } from '@/components/ui/ResultPanel';
 import { RiskRow } from '@/components/ui/RiskRow';
 import { calcBid, marginLabelText, resolveBidLoanRate, resolveBidMargin } from '@/lib/calc/bidCalculator';
 import {
+  BuildingVatSection,
+  buildingVatStateFromSaved,
+  type BuildingVatSectionState,
+} from '@/components/bid/BuildingVatSection';
+import {
+  resolveBuildingVatWon,
+  resolvePropertySizeClass,
+  suggestFarmTaxWon,
+  buildingVatRateVerdictFromAmount,
+  buildingVatVerdictLabel,
+} from '@/lib/calc/buildingVat';
+import {
   calcCostItems,
   sumConditionalCostsWon,
   type ConditionalCostsWon,
@@ -102,6 +114,31 @@ function conditionalManForSave(
   return out;
 }
 
+function parseAreaField(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const n = parseFloat(trimmed.replace(/,/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+function buildingVatSavedFromState(state: BuildingVatSectionState) {
+  const exclusiveAreaM2 = parseAreaField(state.exclusiveAreaM2);
+  const buildingVatMan = parseManwonInput(state.buildingVatMan);
+  const landAreaM2 = parseAreaField(state.landAreaM2);
+  const landUnitPricePerM2 = parseNumberInput(state.landUnitPricePerM2);
+  const buildingStandardPrice = parseNumberInput(state.buildingStandardPrice);
+  return {
+    propertySizeMode: state.propertySizeMode,
+    exclusiveAreaM2,
+    buildingVatCalcMode: state.buildingVatCalcMode,
+    buildingVatMan,
+    landAreaM2,
+    landUnitPricePerM2: landUnitPricePerM2 > 0 ? landUnitPricePerM2 : undefined,
+    buildingStandardPrice:
+      buildingStandardPrice > 0 ? buildingStandardPrice : undefined,
+  };
+}
+
 export default function BidCalcPage() {
   const router = useRouter();
   const { activeCase, updateCase } = useCases();
@@ -133,6 +170,10 @@ export default function BidCalcPage() {
   const [housingBondError, setHousingBondError] = useState<string | null>(
     null,
   );
+  const [buildingVatState, setBuildingVatState] =
+    useState<BuildingVatSectionState>(() =>
+      buildingVatStateFromSaved(saved, activeCase?.exclusiveAreaM2),
+    );
   useEffect(() => {
     const s = activeCase?.bidCalcInputs;
     if (s) {
@@ -144,6 +185,13 @@ export default function BidCalcPage() {
       setConditionalMan(manwonFieldsFromSaved(s));
       setOfficialPrice(
         s.officialPrice ? formatComma(s.officialPrice) : '',
+      );
+      setBuildingVatState(
+        buildingVatStateFromSaved(s, activeCase?.exclusiveAreaM2),
+      );
+    } else {
+      setBuildingVatState(
+        buildingVatStateFromSaved(undefined, activeCase?.exclusiveAreaM2),
       );
     }
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -225,23 +273,83 @@ export default function BidCalcPage() {
     [conditionalWon],
   );
 
+  const sellPriceWon = parseNumberInput(sellPrice);
+
+  const exclusiveAreaResolved = useMemo(() => {
+    return (
+      parseAreaField(buildingVatState.exclusiveAreaM2) ??
+      activeCase?.exclusiveAreaM2
+    );
+  }, [buildingVatState.exclusiveAreaM2, activeCase?.exclusiveAreaM2]);
+
+  const propertySizeClass = useMemo(
+    () =>
+      resolvePropertySizeClass(
+        buildingVatState.propertySizeMode,
+        exclusiveAreaResolved,
+      ),
+    [buildingVatState.propertySizeMode, exclusiveAreaResolved],
+  );
+
+  const buildingVatSaved = useMemo(
+    () => buildingVatSavedFromState(buildingVatState),
+    [buildingVatState],
+  );
+
+  const buildingVatWon = useMemo(() => {
+    const directWon =
+      buildingVatSaved.buildingVatMan != null
+        ? buildingVatSaved.buildingVatMan * 10_000
+        : undefined;
+    return resolveBuildingVatWon({
+      propertySize: propertySizeClass,
+      sellPrice: sellPriceWon,
+      calcMode: buildingVatState.buildingVatCalcMode,
+      directVatWon: directWon,
+      landAreaM2: buildingVatSaved.landAreaM2,
+      landUnitPricePerM2: buildingVatSaved.landUnitPricePerM2,
+      buildingStandardPrice: buildingVatSaved.buildingStandardPrice,
+    });
+  }, [
+    propertySizeClass,
+    sellPriceWon,
+    buildingVatState.buildingVatCalcMode,
+    buildingVatSaved,
+  ]);
+
   const bid = useMemo(() => {
     const cost = parseFloat(costRate) / 100 || 0.05;
     return calcBid({
-      sellPrice: parseNumberInput(sellPrice),
+      sellPrice: sellPriceWon,
       months: Math.min(6, Math.max(1, parseFloat(months) || 6)),
       loanRate: loanRate / 100,
       margin: margin / 100,
       costRate: cost,
       conditionalExtra,
+      buildingVat: buildingVatWon,
     });
-  }, [sellPrice, months, loanRate, margin, costRate, conditionalExtra]);
+  }, [
+    sellPriceWon,
+    months,
+    loanRate,
+    margin,
+    costRate,
+    conditionalExtra,
+    buildingVatWon,
+  ]);
+
+  const farmTaxHint = useMemo(() => {
+    if (propertySizeClass !== 'large') return null;
+    const suggested = suggestFarmTaxWon(bid.bidPrice, exclusiveAreaResolved);
+    if (suggested <= 0) return null;
+    return ko.bidCalc.farmTaxSuggest.replace('{amount}', fmtWon(suggested));
+  }, [propertySizeClass, bid.bidPrice, exclusiveAreaResolved]);
 
   const costs = useMemo(() => {
     const cost = parseFloat(costRate) / 100 || 0.05;
     return calcCostItems(
       bid.bidPrice,
-      parseNumberInput(sellPrice),
+      sellPriceWon,
       bid.interestCost,
       bid.loanPrincipal,
       Math.min(6, Math.max(1, parseFloat(months) || 6)),
@@ -255,16 +363,18 @@ export default function BidCalcPage() {
         regionId: brokerFeeRegionResolved.regionId,
         regionProfile: brokerFeeRegionResolved.profile,
       },
+      buildingVatWon,
     );
   }, [
     bid,
-    sellPrice,
+    sellPriceWon,
     months,
     loanRate,
     costRate,
     conditionalWon,
     housingBondCost,
     brokerFeeRegionResolved,
+    buildingVatWon,
   ]);
 
   function setConditionalManField(key: ConditionalCostKey, raw: string) {
@@ -306,22 +416,25 @@ export default function BidCalcPage() {
 
   const savePayload = useMemo(
     () => ({
-      sellPrice: parseNumberInput(sellPrice),
+      sellPrice: sellPriceWon,
       months: Math.min(6, Math.max(1, parseFloat(months) || 6)),
       loanRate,
       margin,
       costRate: parseFloat(costRate) / 100 || 0.05,
       conditionalMan: conditionalManForSave(conditionalMan),
       officialPrice: officialPriceWon > 0 ? officialPriceWon : undefined,
+      buildingVat: buildingVatSaved,
+      exclusiveAreaM2: buildingVatSaved.exclusiveAreaM2,
     }),
     [
-      sellPrice,
+      sellPriceWon,
       months,
       loanRate,
       margin,
       costRate,
       conditionalMan,
       officialPriceWon,
+      buildingVatSaved,
     ],
   );
 
@@ -342,7 +455,17 @@ export default function BidCalcPage() {
           repairCostMan: payload.conditionalMan.repairCostMan,
           forceExecCostMan: payload.conditionalMan.forceExecCostMan,
           officialPrice: payload.officialPrice,
+          propertySizeMode: payload.buildingVat.propertySizeMode,
+          exclusiveAreaM2: payload.buildingVat.exclusiveAreaM2,
+          buildingVatCalcMode: payload.buildingVat.buildingVatCalcMode,
+          buildingVatMan: payload.buildingVat.buildingVatMan,
+          landAreaM2: payload.buildingVat.landAreaM2,
+          landUnitPricePerM2: payload.buildingVat.landUnitPricePerM2,
+          buildingStandardPrice: payload.buildingVat.buildingStandardPrice,
         },
+        ...(payload.exclusiveAreaM2 != null
+          ? { exclusiveAreaM2: payload.exclusiveAreaM2 }
+          : {}),
         stage: afterBidCalcSaved(activeCase.stage),
       });
     },
@@ -381,6 +504,16 @@ export default function BidCalcPage() {
       {!activeCase ? (
         <div className="banner">{ko.common.noActiveCase}</div>
       ) : null}
+
+      <BuildingVatSection
+        sellPriceWon={sellPriceWon}
+        caseExclusiveAreaM2={activeCase?.exclusiveAreaM2}
+        state={buildingVatState}
+        onChange={(patch) =>
+          setBuildingVatState((prev) => ({ ...prev, ...patch }))
+        }
+        resolvedBuildingVatWon={buildingVatWon}
+      />
 
       <Section>
         <div className="calc-layout">
@@ -497,6 +630,31 @@ export default function BidCalcPage() {
             : '2차 취득 산정 입찰가 (원단위 상세는 다운로드에서 확인)'
         }
         rows={[
+          ...(bid.buildingVat > 0
+            ? [
+                {
+                  label: '실질 매도가',
+                  value: fmtWon(bid.effectiveSellPrice),
+                },
+                {
+                  label: '건물분 부가세',
+                  value: (() => {
+                    const rate =
+                      sellPriceWon > 0
+                        ? bid.buildingVat / sellPriceWon
+                        : 0;
+                    const verdict = buildingVatRateVerdictFromAmount(
+                      sellPriceWon,
+                      bid.buildingVat,
+                    );
+                    const suffix = verdict
+                      ? ` · ${buildingVatVerdictLabel(verdict)}`
+                      : '';
+                    return `−${fmtWon(bid.buildingVat)} (${pct(rate)}${suffix})`;
+                  })(),
+                },
+              ]
+            : []),
           ...(bid.conditionalExtra > 0
             ? [
                 {
@@ -539,7 +697,11 @@ export default function BidCalcPage() {
           <RiskRow
             key={item.key}
             name={item.name}
-            note={item.note}
+            note={
+              item.key === 'farm' && farmTaxHint
+                ? `${item.note} · ${farmTaxHint}`
+                : item.note
+            }
             amount={renderCostAmount(item)}
             badge={item.kind === 'required' ? '필수' : '조건부'}
             badgeTone={item.kind === 'required' ? 'neutral' : 'mid'}

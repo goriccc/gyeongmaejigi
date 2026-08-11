@@ -144,6 +144,8 @@ export type CaseFile = {
   courtName?: string;
   /** 소재지 (법원경매정보) */
   address?: string;
+  /** 전용면적(㎡) — 국평/대형·농특세 판정 */
+  exclusiveAreaM2?: number;
   latitude?: number;
   longitude?: number;
   riskFlags: RiskFlag[];
@@ -170,6 +172,17 @@ export type CaseFile = {
     forceExecCostMan?: number;
     /** 공시가격·시가표준액 (원) — 국민주택채권 계산 */
     officialPrice?: number;
+    /** auto | standard | large — 전용면적 기준 자동 또는 수동 */
+    propertySizeMode?: 'auto' | 'standard' | 'large';
+    /** 입찰가 화면 전용면적 (사건 값과 동기화) */
+    exclusiveAreaM2?: number;
+    /** 건물분 부가세 — direct: 금액 직접, standards: 기준시가 산출 */
+    buildingVatCalcMode?: 'direct' | 'standards';
+    /** 건물분 부가세 (만원) — direct 모드 */
+    buildingVatMan?: number;
+    landAreaM2?: number;
+    landUnitPricePerM2?: number;
+    buildingStandardPrice?: number;
   };
   loanOffers?: LoanOffer[];
   /** 모듈 E LLM 결과 */
@@ -198,4 +211,5 @@ export type CreateCaseInput = {
   minimumSalePrice?: number;
   bidDepositAmount?: number;
   clientLabel?: string;
+  exclusiveAreaM2?: number;
 };

@@ -44,7 +44,10 @@ export default function LoanComparePage() {
     }
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const bid = useMemo(() => bidResultFromSaved(saved), [saved]);
+  const bid = useMemo(
+    () => bidResultFromSaved(saved, activeCase?.exclusiveAreaM2),
+    [saved, activeCase?.exclusiveAreaM2],
+  );
 
   const rankedLoans = useMemo(() => {
     if (!bid || !saved) return [];

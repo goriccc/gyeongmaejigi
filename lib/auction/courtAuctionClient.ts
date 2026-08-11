@@ -10,6 +10,7 @@ import {
   parseAmount,
   stripHtml,
 } from '@/lib/auction/caseNumberFormat';
+import { parseExclusiveAreaM2 } from '@/lib/auction/exclusiveArea';
 
 const BASE_URL = 'https://www.courtauction.go.kr';
 const USER_AGENT =
@@ -38,6 +39,14 @@ const ENDPOINTS = {
       '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml&pgjId=151F00',
     referer:
       '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml&pgjId=151F00',
+    submissionid: 'mf_wfm_mainFrame_sbm_selectGdsDtlSrch',
+  },
+  propertyDetail: {
+    path: '/pgj/pgj15B/selectAuctnCsSrchRslt.on',
+    warmup:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ15BM01.xml&pgjId=15BM01',
+    referer:
+      '/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ15BM01.xml&pgjId=15BM01',
     submissionid: 'mf_wfm_mainFrame_sbm_selectGdsDtlSrch',
   },
 } as const;
@@ -110,7 +119,43 @@ function parsePropertyRow(row: Record<string, unknown>) {
     failedBidCount,
     auctionRound: parseAuctionRound(row),
     resultCode: nullIfBlank(row.mulStatcd ?? row.rsltCd),
+    exclusiveAreaM2:
+      parseExclusiveAreaM2([
+        { minArea: row.minArea, maxArea: row.maxArea, objctArDts: row.objctArDts },
+      ]) ?? undefined,
   };
+}
+
+function parseExclusiveAreaFromDetail(data: Record<string, unknown>): number | null {
+  const result = data.dma_result as Record<string, unknown> | undefined;
+  if (!result) return null;
+
+  const objects = Array.isArray(result.gdsDspslObjctLst)
+    ? (result.gdsDspslObjctLst as Array<Record<string, unknown>>)
+    : [];
+  const buildingDetails = Array.isArray(result.bldSdtrDtlLstAll)
+    ? (result.bldSdtrDtlLstAll as Array<Array<Record<string, unknown>> | Record<string, unknown>>)
+    : [];
+
+  const sources: Array<Record<string, unknown>> = [];
+  for (const obj of objects) {
+    sources.push({
+      pjbBuldList: obj.pjbBuldList,
+      objctArDts: obj.objctArDts,
+      rletDvsDts: obj.rletDvsDts,
+    });
+  }
+  for (const entry of buildingDetails) {
+    const rows = Array.isArray(entry) ? entry : [entry];
+    for (const row of rows) {
+      sources.push({
+        rletDvsDts: row.rletDvsDts,
+        bldSdtrDtlDts: row.bldSdtrDtlDts,
+      });
+    }
+  }
+
+  return parseExclusiveAreaM2(sources);
 }
 
 class CourtAuctionClient {
@@ -166,7 +211,11 @@ class CourtAuctionClient {
     this.lastCallAt = Date.now();
   }
 
-  private async postJson<T>(key: EndpointKey, body: unknown): Promise<T> {
+  private async postJson<T>(
+    key: EndpointKey,
+    body: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<T> {
     await this.warmup(key);
     await this.throttle();
     const ep = ENDPOINTS[key];
@@ -184,6 +233,7 @@ class CourtAuctionClient {
             ? ep.submissionid
             : 'mf_wfm_mainFrame_sbm_selectGdsDtlSrch',
         'sc-userid': 'SYSTEM',
+        ...extraHeaders,
         ...(this.cookieHeader() ? { Cookie: this.cookieHeader() } : {}),
       },
       body: JSON.stringify(body ?? {}),
@@ -235,7 +285,7 @@ class CourtAuctionClient {
     }>;
   }
 
-  private async searchPropertyByCase(courtCode: string, caseNumber: string) {
+  private async searchPropertyRaw(courtCode: string, caseNumber: string) {
     const raw = await this.postJson<{
       data?: { dlt_srchResult?: Array<Record<string, unknown>> };
     }>('propertySearch', {
@@ -292,8 +342,71 @@ class CourtAuctionClient {
       },
     });
 
-    const rows = raw.data?.dlt_srchResult ?? [];
+    return raw.data?.dlt_srchResult ?? [];
+  }
+
+  private async searchPropertyByCase(courtCode: string, caseNumber: string) {
+    const rows = await this.searchPropertyRaw(courtCode, caseNumber);
     return rows.map((row) => parsePropertyRow(row));
+  }
+
+  private async fetchExclusiveAreaFromDetail(
+    courtCode: string,
+    caseNumber: string,
+    dspslGdsSeq: string,
+  ): Promise<number | undefined> {
+    try {
+      const raw = await this.postJson<{ data?: Record<string, unknown> }>(
+        'propertyDetail',
+        {
+          dma_srchGdsDtlSrch: {
+            csNo: caseNumber,
+            cortOfcCd: courtCode,
+            dspslGdsSeq,
+            pgmId: 'PGJ15BM01',
+            srchInfo: '',
+          },
+        },
+        { 'SC-Pgm-Id': 'PGJ15BM01' },
+      );
+      const area = parseExclusiveAreaFromDetail(raw.data ?? {});
+      return area ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async resolveExclusiveAreaM2(
+    courtCode: string,
+    caseNumber: string,
+    searchRows: Array<Record<string, unknown>> | null,
+  ): Promise<number | undefined> {
+    const rows = searchRows ?? (await this.searchPropertyRaw(courtCode, caseNumber));
+    if (!rows.length) return undefined;
+
+    const row = rows[0];
+    const detailCourt = nullIfBlank(row.boCd) ?? courtCode;
+    const detailCase = nullIfBlank(row.srnSaNo) ?? caseNumber;
+    const dspslGdsSeq = row.maemulSer ?? row.dspslGdsSeq;
+
+    if (dspslGdsSeq != null && String(dspslGdsSeq).trim()) {
+      const fromDetail = await this.fetchExclusiveAreaFromDetail(
+        detailCourt,
+        detailCase,
+        String(dspslGdsSeq),
+      );
+      if (fromDetail) return fromDetail;
+    }
+
+    return (
+      parseExclusiveAreaM2([
+        {
+          minArea: row.minArea,
+          maxArea: row.maxArea,
+          objctArDts: row.objctArDts,
+        },
+      ]) ?? undefined
+    );
   }
 
   async getCaseByCaseNumber(courtCode: string, caseNumber: string) {
@@ -349,9 +462,12 @@ class CourtAuctionClient {
       schedule.some((s) => s.auctionRound) ||
       items.some((i) => i.auctionRound);
 
+    let searchRows: Array<Record<string, unknown>> | null = null;
+
     if (!hasAppraisal || !hasSaleDate || !hasMinPrice || !hasRound) {
       try {
-        const fromSearch = await this.searchPropertyByCase(courtCode, csNo);
+        searchRows = await this.searchPropertyRaw(courtCode, csNo);
+        const fromSearch = searchRows.map((row) => parsePropertyRow(row));
         if (fromSearch.length > 0) {
           schedule = [...schedule, ...fromSearch];
           const best =
@@ -379,6 +495,17 @@ class CourtAuctionClient {
       }
     }
 
+    let exclusiveAreaM2: number | undefined;
+    try {
+      exclusiveAreaM2 = await this.resolveExclusiveAreaM2(
+        courtCode,
+        csNo,
+        searchRows,
+      );
+    } catch {
+      // 전용면적 조회 실패는 사건 생성을 막지 않음
+    }
+
     return {
       found: true,
       status: raw.status ?? null,
@@ -393,6 +520,7 @@ class CourtAuctionClient {
       },
       items,
       schedule,
+      exclusiveAreaM2,
     } satisfies CourtAuctionCasePayload;
   }
 }

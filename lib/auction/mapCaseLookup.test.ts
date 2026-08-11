@@ -150,4 +150,21 @@ describe('mapCourtAuctionCase', () => {
       auctionDate: '2026-09-15',
     });
   });
+
+  it('maps exclusive area from payload', () => {
+    const mapped = mapCourtAuctionCase(
+      {
+        found: true,
+        caseInfo: { caseNumber: '2024타경115901' },
+        items: [{ address: '전북 군산시 ...' }],
+        schedule: [],
+        exclusiveAreaM2: 49.67,
+      },
+      'B000240',
+      '군산지원',
+      '2024타경115901',
+    );
+
+    expect(mapped?.exclusiveAreaM2).toBe(49.67);
+  });
 });

@@ -159,7 +159,7 @@ export function getNextAction(c: CaseFile): CaseNextAction {
   }
 
   if (!c.entryMatchResult) {
-    return { href: '/', label: '투자 상담' };
+    return { href: '/b', label: '권리분석' };
   }
   if (!c.rightsAnalysis?.analyzedAt && c.riskFlags.length === 0) {
     return { href: '/b', label: '권리분석' };

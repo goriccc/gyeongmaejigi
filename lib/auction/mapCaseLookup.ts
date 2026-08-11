@@ -34,7 +34,10 @@ export type CourtAuctionCasePayload = {
     failedBidCount?: number | null;
     auctionRound?: number | null;
     resultCode?: string | null;
+    exclusiveAreaM2?: number | null;
   }>;
+  /** 법원경매 물건검색·상세에서 해석한 전용면적(㎡) */
+  exclusiveAreaM2?: number | null;
 };
 
 export type MappedAuctionCase = {
@@ -49,6 +52,7 @@ export type MappedAuctionCase = {
   minimumSalePrice?: number;
   bidDepositAmount?: number;
   bidDepositRate?: 10 | 20;
+  exclusiveAreaM2?: number;
 };
 
 /** 낙찰·유찰 등 명확히 종료된 기일만 제외 */
@@ -145,6 +149,15 @@ export function mapCourtAuctionCase(
     depositRate: target?.depositRate,
   });
 
+  const exclusiveAreaM2 =
+    payload.exclusiveAreaM2 ??
+    payload.items
+      ?.map((i) => (i as { exclusiveAreaM2?: number | null }).exclusiveAreaM2)
+      .find((v) => v && v > 0) ??
+    payload.schedule
+      ?.map((s) => s.exclusiveAreaM2 ?? undefined)
+      .find((v) => v && v > 0);
+
   return {
     courtCode: payload.caseInfo.courtCode?.trim() || courtCode,
     courtName: payload.caseInfo.courtName?.trim() || courtName || '',
@@ -157,6 +170,7 @@ export function mapCourtAuctionCase(
     minimumSalePrice: minimumSalePrice || undefined,
     bidDepositAmount: deposit.amount || undefined,
     bidDepositRate: deposit.rate,
+    exclusiveAreaM2: exclusiveAreaM2 || undefined,
   };
 }
 

@@ -43,6 +43,30 @@ describe('calcBid', () => {
     expect(withExtra.bidPrice).toBe(base.bidPrice - 5_000_000);
     expect(withExtra.interestCost).toBeLessThan(base.interestCost);
   });
+
+  it('건물분 부가세만큼 세후수익을 낮춘다', () => {
+    const base = calcBid({
+      sellPrice: 511_000_000,
+      months: 6,
+      loanRate: 0.048,
+      margin: 0.1,
+      costRate: 0.05,
+    });
+    const withVat = calcBid({
+      sellPrice: 511_000_000,
+      months: 6,
+      loanRate: 0.048,
+      margin: 0.1,
+      costRate: 0.05,
+      buildingVat: 17_524_910,
+    });
+    expect(withVat.bidPrice).toBe(base.bidPrice);
+    expect(withVat.netProfit).toBeCloseTo(base.netProfit - 17_524_910, 0);
+    expect(withVat.effectiveSellPrice).toBeCloseTo(
+      511_000_000 - 17_524_910,
+      0,
+    );
+  });
 });
 
 describe('marginLabelText', () => {
@@ -88,6 +112,26 @@ describe('brokerFeeRate / calcCostItems', () => {
     );
     expect(costs.items).toHaveLength(13);
     expect(costs.requiredTotal).toBeGreaterThan(10_000_000);
+  });
+
+  it('대형 건물분 부가세 항목 추가', () => {
+    const costs = calcCostItems(
+      400_000_000,
+      511_000_000,
+      10_000_000,
+      240_000_000,
+      6,
+      0.048,
+      0.05,
+      undefined,
+      undefined,
+      {},
+      null,
+      {},
+      17_524_910,
+    );
+    expect(costs.items).toHaveLength(14);
+    expect(costs.items.some((i) => i.key === 'buildingVat')).toBe(true);
   });
 });
 

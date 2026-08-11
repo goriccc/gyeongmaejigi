@@ -30,6 +30,7 @@ type LookupResult = {
   minimumSalePrice?: number;
   bidDepositAmount?: number;
   bidDepositRate?: BidDepositRate;
+  exclusiveAreaM2?: number;
   latitude?: number;
   longitude?: number;
   error?: string;
@@ -53,6 +54,7 @@ export function NewCaseForm({ onClose }: Props) {
   const [auctionRound, setAuctionRound] = useState<number | undefined>();
   const [bidDepositRate, setBidDepositRate] = useState<BidDepositRate>(10);
   const [auctionDate, setAuctionDate] = useState('');
+  const [exclusiveAreaM2, setExclusiveAreaM2] = useState<number | undefined>();
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -161,6 +163,7 @@ export function NewCaseForm({ onClose }: Props) {
       setAuctionRound(data.auctionRound);
       setBidDepositRate(data.bidDepositRate ?? 10);
       setAuctionDate(formatYmd(data.auctionDate) ?? data.auctionDate ?? '');
+      setExclusiveAreaM2(data.exclusiveAreaM2);
       setLatitude(data.latitude);
       setLongitude(data.longitude);
       setLookedUp(true);
@@ -229,6 +232,7 @@ export function NewCaseForm({ onClose }: Props) {
       minimumSalePrice: minPrice > 0 ? minPrice : minimumSalePrice,
       bidDepositRate: bidDeposit.rate,
       bidDepositAmount: bidDeposit.amount,
+      exclusiveAreaM2,
     });
     onClose();
   }
@@ -246,6 +250,7 @@ export function NewCaseForm({ onClose }: Props) {
               onChange={(e) => {
                 setCourtCode(e.target.value);
                 setLookedUp(false);
+                setExclusiveAreaM2(undefined);
               }}
             >
               <option value="">{ko.caseForm.courtPh}</option>
@@ -276,6 +281,7 @@ export function NewCaseForm({ onClose }: Props) {
                   onChange={(e) => {
                     setCaseYear(e.target.value.replace(/\D/g, '').slice(0, 4));
                     setLookedUp(false);
+                    setExclusiveAreaM2(undefined);
                   }}
                   onKeyDown={handleCaseYearKeyDown}
                   aria-label={ko.caseForm.caseYear}
@@ -294,6 +300,7 @@ export function NewCaseForm({ onClose }: Props) {
                   onChange={(e) => {
                     setCaseSerial(e.target.value.replace(/\D/g, '').slice(0, 6));
                     setLookedUp(false);
+                    setExclusiveAreaM2(undefined);
                   }}
                   onKeyDown={handleCaseSerialKeyDown}
                   aria-label={ko.caseForm.caseSerial}
@@ -320,6 +327,23 @@ export function NewCaseForm({ onClose }: Props) {
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="case-exclusive-area">
+                  {ko.caseForm.exclusiveArea}
+                </label>
+                <input
+                  id="case-exclusive-area"
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  className="case-readonly"
+                  value={
+                    exclusiveAreaM2 != null && exclusiveAreaM2 > 0
+                      ? `${exclusiveAreaM2} ㎡`
+                      : ko.caseForm.exclusiveAreaMissing
+                  }
                 />
               </div>
               <div className="case-form-grid">

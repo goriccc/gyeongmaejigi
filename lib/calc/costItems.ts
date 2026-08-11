@@ -8,6 +8,10 @@ import {
   type CalcBrokerFeeOptions,
 } from './brokerFee';
 import { eduTaxRate, progressiveAcquisitionTaxRate } from './acquisitionTax';
+import {
+  buildingVatRateVerdictFromAmount,
+  buildingVatVerdictLabel,
+} from './buildingVat';
 
 export { brokerFeeRate } from './brokerFee';
 
@@ -81,6 +85,7 @@ export function calcCostItems(
   conditional: ConditionalCostsWon = {},
   housingBond: HousingBondCostInput | null = null,
   brokerFeeRegion: CalcBrokerFeeOptions = {},
+  buildingVat = 0,
 ): CostItemsResult {
   const taxRate = progressiveAcquisitionTaxRate(bid);
   const taxAmt = bid * taxRate;
@@ -170,6 +175,27 @@ export function calcCostItems(
       rate: null,
       kind: 'required',
     },
+    ...(buildingVat > 0
+      ? [
+          {
+            key: 'buildingVat',
+            name: '건물분 부가세 (대형)',
+            note: (() => {
+              const base =
+                '전용 84㎡ 초과 단타 — 매수자 명의이나 실무상 낙찰자 부담 가정. 매도가 대비 약 3~4%';
+              const verdict = buildingVatRateVerdictFromAmount(
+                sell,
+                buildingVat,
+              );
+              if (!verdict) return base;
+              return `${base} · ${buildingVatVerdictLabel(verdict)}`;
+            })(),
+            amount: buildingVat,
+            rate: sell > 0 ? buildingVat / sell : null,
+            kind: 'required' as const,
+          },
+        ]
+      : []),
     {
       key: 'unpaid',
       name: '미납관리비',

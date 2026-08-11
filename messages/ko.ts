@@ -61,6 +61,8 @@ export const ko = {
     auctionRound: '금번 회차',
     minimumSalePrice: '최저매각가격 (원)',
     auctionDate: '매각기일',
+    exclusiveArea: '전용면적 (㎡)',
+    exclusiveAreaMissing: '법원경매에서 조회되지 않음',
     lookup: '정보 불러오기',
     lookupLoading: '조회 중…',
     lookupLead:
@@ -90,6 +92,39 @@ export const ko = {
     switch: '사건 전환',
     trackBidding: '입찰 준비',
     trackEviction: '명도',
+  },
+  bidCalc: {
+    propertySizeTitle: '물건 규모 (국평 / 대형)',
+    propertySizeNote:
+      '전용 84㎡ 초과(대형)는 단타 매도 시 건물분 부가세를 반영합니다.',
+    propertySizeAuto: '자동 (전용면적)',
+    propertySizeStandard: '국평 이하',
+    propertySizeLarge: '대형',
+    propertySizeAutoApplied: '전용 {area}㎡ 기준 자동 판정',
+    exclusiveAreaLabel: '전용면적 (㎡)',
+    exclusiveAreaHint:
+      '건축물대장 전용면적. 사건에 저장된 값이 있으면 자동 채워집니다.',
+    buildingVatAmount: '건물분 부가세',
+    effectiveSellPrice: '실질 매도가',
+    buildingVatDirect: '금액 직접 입력',
+    buildingVatStandards: '기준시가로 계산',
+    buildingVatDirectLabel: '건물분 부가세 (만원)',
+    buildingVatDetailOpen: '기준시가 입력 펼치기',
+    buildingVatDetailClose: '기준시가 입력 접기',
+    landAreaLabel: '토지면적 (㎡)',
+    landUnitPriceLabel: '㎡당 개별공시지가 (원)',
+    buildingStandardLabel: '건물 기준시가 (원, 홈택스)',
+    buildingVatLinks:
+      '토지: realtyprice.kr · 건물 기준시가: 홈택스 기준시가조회 · 면적: 건축물대장',
+    buildingVatPreview: '산출 부가세 {amount} ({rate})',
+    buildingVatDisclaimer:
+      '부가세는 매수자 명의이나 실무상 낙찰자 부담으로 가정합니다. 세후수익·비용 상세에 반영됩니다.',
+    buildingVatVerdictRecommended: '추천 물건',
+    buildingVatVerdictNormal: '보통 물건',
+    buildingVatVerdictNotRecommended: '비추천 물건',
+    buildingVatVerdictHint:
+      '매도가 대비 부가세율 — 4% 이하 추천 물건 · 4.5% 이하 보통 물건 · 4.5% 초과 비추천 물건',
+    farmTaxSuggest: '전용 85㎡ 초과 — 농특세 약 {amount} (낙찰가×0.2%)',
   },
   bidOutcome: {
     title: '입찰 결과',
