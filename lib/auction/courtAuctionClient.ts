@@ -479,6 +479,14 @@ class CourtAuctionClient {
         depositAmount: parseBidDepositAmount(
           r.grntAmt ?? r.ipchalGrntAmt ?? r.bidGrntAmt ?? r.grntAm,
         ),
+        exclusiveAreaM2:
+          parseExclusiveAreaM2([
+            {
+              minArea: r.minArea,
+              maxArea: r.maxArea,
+              objctArDts: r.objctArDts,
+            },
+          ]) ?? undefined,
       };
     });
 
