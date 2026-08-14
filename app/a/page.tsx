@@ -14,6 +14,7 @@ import {
   caseDisplayName,
   caseTaskMetaLine,
   daysUntilAuction,
+  formatCaseNumberWithProperty,
   getNextAction,
   groupCases,
   normalizeCaseTrack,
@@ -40,8 +41,8 @@ function TaskCard({
 
   return (
     <div className="task-card">
-      {c.caseNumber?.trim() ? (
-        <div className="task-card-case-no">{c.caseNumber.trim()}</div>
+      {formatCaseNumberWithProperty(c) ? (
+        <div className="task-card-case-no">{formatCaseNumberWithProperty(c)}</div>
       ) : null}
       <div className="task-card-row">
         <div className="task-card-main">

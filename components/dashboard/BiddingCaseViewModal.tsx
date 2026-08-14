@@ -71,6 +71,17 @@ export function BiddingCaseViewModal({ caseFile, onClose }: Props) {
                   value={parsedCase?.serial ?? caseFile.caseNumber}
                   aria-label={ko.caseForm.caseSerial}
                 />
+                <span className="case-number-type case-number-label" aria-hidden>
+                  {ko.caseForm.propertyNumber}
+                </span>
+                <input
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  className="case-number-property case-readonly"
+                  value={String(caseFile.propertyNumber ?? 1)}
+                  aria-label={ko.caseForm.propertyNumber}
+                />
               </div>
             </div>
           </div>

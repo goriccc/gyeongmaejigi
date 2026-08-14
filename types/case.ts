@@ -125,6 +125,8 @@ export type CaseFile = {
   id: string;
   name: string;
   caseNumber: string;
+  /** 매각 물건 순번 — 법원경매 maemulSer (기본 1) */
+  propertyNumber?: number;
   stage: CaseStage;
   /** 입찰 준비 vs 명도 전용 — 구버전 데이터는 bidding으로 간주 */
   track: CaseTrack;
@@ -203,6 +205,7 @@ export type CreateCaseInput = {
   name: string;
   track?: CaseTrack;
   caseNumber?: string;
+  propertyNumber?: number;
   courtCode?: string;
   courtName?: string;
   address?: string;

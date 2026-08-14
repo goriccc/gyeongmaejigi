@@ -66,10 +66,19 @@ export function caseDisplayName(c: CaseFile): string {
   return c.name;
 }
 
+/** 사건번호 + 물건번호 표시 (예: 2026타경1234 · 1) */
+export function formatCaseNumberWithProperty(c: CaseFile): string {
+  const cn = c.caseNumber?.trim();
+  if (!cn) return '';
+  const prop = c.propertyNumber ?? 1;
+  return `${cn} · ${prop}`;
+}
+
 export function caseMetaLine(c: CaseFile): string {
   const parts: string[] = [];
   if (c.address?.trim()) parts.push(c.address.trim());
-  if (c.caseNumber?.trim()) parts.push(c.caseNumber.trim());
+  const caseNo = formatCaseNumberWithProperty(c);
+  if (caseNo) parts.push(caseNo);
   parts.push(...caseMetaStats(c));
   return parts.join(' · ');
 }

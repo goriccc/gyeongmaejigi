@@ -54,6 +54,7 @@ export const ko = {
     caseYear: '사건 연도',
     caseType: '타경',
     caseSerial: '일련번호',
+    propertyNumber: '물건번호',
     caseSerialPh: '115901',
     caseNumberPh: '2026타경1234',
     appraisal: '감정가 (원)',

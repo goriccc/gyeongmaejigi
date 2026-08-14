@@ -1,4 +1,5 @@
 import type { CourtAuctionCasePayload } from '@/lib/auction/mapCaseLookup';
+import { parsePropertySeq } from '@/lib/auction/mapCaseLookup';
 import {
   parseBidDepositAmount,
   parseBidDepositRate,
@@ -63,6 +64,9 @@ function parseScheduleRow(row: Record<string, unknown>) {
     row.flbdNcnt ?? row.yuchalCnt ?? row.usflbdNcnt,
   );
   return {
+    propertyNumber: parsePropertySeq(
+      row.maemulSer ?? row.dspslGdsSeq ?? row.mulSer,
+    ),
     saleDate: formatYmd(
       row.dspslDxdyYmd ?? row.maeGiil ?? row.dspslYmd ?? row.dxdyYmd,
     ),
@@ -111,6 +115,7 @@ function extractScheduleLists(data: Record<string, unknown>): unknown[] {
 function parsePropertyRow(row: Record<string, unknown>) {
   const failedBidCount = parseFailedBidCount(row.yuchalCnt ?? row.flbdNcnt);
   return {
+    propertyNumber: parsePropertySeq(row.maemulSer ?? row.dspslGdsSeq),
     saleDate: formatYmd(row.maeGiil ?? row.dspslDxdyYmd),
     appraisedPrice: parseAmount(row.gamevalAmt ?? row.aeeEvlAmt),
     minimumSalePrice: parseAmount(row.minmaePrice ?? row.lwsDspslPrc),
@@ -376,15 +381,30 @@ class CourtAuctionClient {
     }
   }
 
+  private pickSearchRow(
+    rows: Array<Record<string, unknown>>,
+    propertyNumber: number,
+  ): Record<string, unknown> | undefined {
+    if (!rows.length) return undefined;
+    const seq = String(propertyNumber);
+    const bySeq = rows.find(
+      (row) => String(row.maemulSer ?? row.dspslGdsSeq ?? '').trim() === seq,
+    );
+    if (bySeq) return bySeq;
+    return rows[propertyNumber - 1] ?? rows[0];
+  }
+
   private async resolveExclusiveAreaM2(
     courtCode: string,
     caseNumber: string,
     searchRows: Array<Record<string, unknown>> | null,
+    propertyNumber = 1,
   ): Promise<number | undefined> {
     const rows = searchRows ?? (await this.searchPropertyRaw(courtCode, caseNumber));
     if (!rows.length) return undefined;
 
-    const row = rows[0];
+    const row = this.pickSearchRow(rows, propertyNumber);
+    if (!row) return undefined;
     const detailCourt = nullIfBlank(row.boCd) ?? courtCode;
     const detailCase = nullIfBlank(row.srnSaNo) ?? caseNumber;
     const dspslGdsSeq = row.maemulSer ?? row.dspslGdsSeq;
@@ -409,7 +429,11 @@ class CourtAuctionClient {
     );
   }
 
-  async getCaseByCaseNumber(courtCode: string, caseNumber: string) {
+  async getCaseByCaseNumber(
+    courtCode: string,
+    caseNumber: string,
+    propertyNumber = 1,
+  ) {
     const csNo = normalizeCaseNumber(caseNumber);
     const raw = await this.postJson<{
       status?: number;
@@ -436,6 +460,9 @@ class CourtAuctionClient {
     ).map((row) => {
       const r = row as Record<string, unknown>;
       return {
+        propertyNumber: parsePropertySeq(
+          r.maemulSer ?? r.dspslGdsSeq ?? r.mulSer ?? r.dspslObjctSeq,
+        ),
         address: nullIfBlank(r.userSt) || nullIfBlank(r.st),
         appraisedPrice: parseAmount(
           r.aeeEvlAmt ?? r.gamevalAmt ?? r.nvltEvalAmt,
@@ -445,6 +472,13 @@ class CourtAuctionClient {
           r.flbdNcnt ?? r.yuchalCnt ?? r.usflbdNcnt,
         ),
         auctionRound: parseAuctionRound(r) ?? undefined,
+        minimumSalePrice: parseAmount(r.lwsDspslPrc ?? r.minmaePrice),
+        depositRate: parseBidDepositRate(
+          r.grntRt ?? r.ipchalGrntRt ?? r.bidGrntRt ?? r.grntRate,
+        ),
+        depositAmount: parseBidDepositAmount(
+          r.grntAmt ?? r.ipchalGrntAmt ?? r.bidGrntAmt ?? r.grntAm,
+        ),
       };
     });
 
@@ -452,47 +486,78 @@ class CourtAuctionClient {
       parseScheduleRow(row as Record<string, unknown>),
     );
 
-    const hasAppraisal =
-      items.some((i) => (i.appraisedPrice ?? 0) > 0) ||
-      schedule.some((s) => (s.appraisedPrice ?? 0) > 0);
-    const hasSaleDate =
-      items.some((i) => i.saleDate) || schedule.some((s) => s.saleDate);
-    const hasMinPrice = schedule.some((s) => (s.minimumSalePrice ?? 0) > 0);
-    const hasRound =
-      schedule.some((s) => s.auctionRound) ||
-      items.some((i) => i.auctionRound);
-
     let searchRows: Array<Record<string, unknown>> | null = null;
+    try {
+      searchRows = await this.searchPropertyRaw(courtCode, csNo);
+      const fromSearch = searchRows.map((row) => {
+        const parsed = parsePropertyRow(row);
+        return {
+          ...parsed,
+          address:
+            nullIfBlank(row.dongSanAdr) ||
+            nullIfBlank(row.userSt) ||
+            nullIfBlank(row.st),
+        };
+      });
 
-    if (!hasAppraisal || !hasSaleDate || !hasMinPrice || !hasRound) {
-      try {
-        searchRows = await this.searchPropertyRaw(courtCode, csNo);
-        const fromSearch = searchRows.map((row) => parsePropertyRow(row));
-        if (fromSearch.length > 0) {
-          schedule = [...schedule, ...fromSearch];
-          const best =
-            fromSearch.find((r) => r.appraisedPrice && r.saleDate) ??
-            fromSearch[0];
-          if (best && items.length > 0) {
-            items = items.map((item, index) =>
-              index === 0
-                ? {
-                    ...item,
-                    appraisedPrice:
-                      item.appraisedPrice ?? best.appraisedPrice ?? null,
-                    saleDate: item.saleDate ?? best.saleDate ?? null,
-                    failedBidCount:
-                      item.failedBidCount ?? best.failedBidCount ?? null,
-                    auctionRound:
-                      item.auctionRound ?? best.auctionRound ?? undefined,
-                  }
-                : item,
-            );
-          }
+      if (fromSearch.length > 0) {
+        schedule = [
+          ...schedule,
+          ...fromSearch.map((row) => ({
+            propertyNumber: row.propertyNumber,
+            saleDate: row.saleDate,
+            appraisedPrice: row.appraisedPrice,
+            minimumSalePrice: row.minimumSalePrice,
+            depositRate: row.depositRate,
+            depositAmount: row.depositAmount,
+            failedBidCount: row.failedBidCount,
+            auctionRound: row.auctionRound,
+            resultCode: row.resultCode,
+            exclusiveAreaM2: row.exclusiveAreaM2,
+          })),
+        ];
+
+        if (items.length === 0) {
+          items = fromSearch.map((row) => ({
+            propertyNumber: row.propertyNumber,
+            address: row.address,
+            appraisedPrice: row.appraisedPrice,
+            saleDate: row.saleDate,
+            failedBidCount: row.failedBidCount,
+            auctionRound: row.auctionRound,
+            minimumSalePrice: row.minimumSalePrice,
+            depositRate: row.depositRate,
+            depositAmount: row.depositAmount,
+            exclusiveAreaM2: row.exclusiveAreaM2,
+          }));
+        } else {
+          items = items.map((item, index) => {
+            const seq = item.propertyNumber ?? index + 1;
+            const match =
+              fromSearch.find((row) => row.propertyNumber === seq) ??
+              fromSearch[index];
+            if (!match) {
+              return { ...item, propertyNumber: item.propertyNumber ?? seq };
+            }
+            return {
+              ...item,
+              propertyNumber: item.propertyNumber ?? match.propertyNumber ?? seq,
+              address: item.address || match.address,
+              appraisedPrice: item.appraisedPrice ?? match.appraisedPrice,
+              saleDate: item.saleDate ?? match.saleDate,
+              failedBidCount: item.failedBidCount ?? match.failedBidCount,
+              auctionRound: item.auctionRound ?? match.auctionRound,
+              minimumSalePrice:
+                match.minimumSalePrice ?? item.minimumSalePrice,
+              depositRate: match.depositRate ?? item.depositRate,
+              depositAmount: match.depositAmount ?? item.depositAmount,
+              exclusiveAreaM2: match.exclusiveAreaM2 ?? item.exclusiveAreaM2,
+            };
+          });
         }
-      } catch {
-        // 물건 검색 fallback 실패는 무시
       }
+    } catch {
+      // 물건 검색 fallback 실패는 무시
     }
 
     let exclusiveAreaM2: number | undefined;
@@ -501,6 +566,7 @@ class CourtAuctionClient {
         courtCode,
         csNo,
         searchRows,
+        propertyNumber,
       );
     } catch {
       // 전용면적 조회 실패는 사건 생성을 막지 않음

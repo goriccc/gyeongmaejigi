@@ -33,6 +33,7 @@ type LookupResult = {
   exclusiveAreaM2?: number;
   latitude?: number;
   longitude?: number;
+  propertyNumber?: number;
   error?: string;
 };
 
@@ -47,6 +48,7 @@ export function NewCaseForm({ onClose }: Props) {
   const [courtCode, setCourtCode] = useState('');
   const [caseYear, setCaseYear] = useState('');
   const [caseSerial, setCaseSerial] = useState('');
+  const [propertyNumber, setPropertyNumber] = useState('1');
   const [address, setAddress] = useState('');
   const [appraisal, setAppraisal] = useState('');
   const [minSalePrice, setMinSalePrice] = useState('');
@@ -61,6 +63,7 @@ export function NewCaseForm({ onClose }: Props) {
   const [lookedUp, setLookedUp] = useState(false);
   const [error, setError] = useState('');
   const serialRef = useRef<HTMLInputElement>(null);
+  const propertyRef = useRef<HTMLInputElement>(null);
 
   const fullCaseNumber = useMemo(
     () => buildTakyungCaseNumber(caseYear, caseSerial),
@@ -116,6 +119,16 @@ export function NewCaseForm({ onClose }: Props) {
     }
   }
 
+  const parsedPropertyNumber = useMemo(() => {
+    const n = parseInt(propertyNumber, 10);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  }, [propertyNumber]);
+
+  function resetLookupFields() {
+    setLookedUp(false);
+    setExclusiveAreaM2(undefined);
+  }
+
   async function lookupCase() {
     setError('');
     if (!courtCode) {
@@ -144,6 +157,7 @@ export function NewCaseForm({ onClose }: Props) {
           courtCode,
           caseNumber: fullCaseNumber,
           courtName,
+          propertyNumber: parsedPropertyNumber,
         }),
       });
       const data = await readJsonSafe<LookupResult>(res);
@@ -166,6 +180,9 @@ export function NewCaseForm({ onClose }: Props) {
       setExclusiveAreaM2(data.exclusiveAreaM2);
       setLatitude(data.latitude);
       setLongitude(data.longitude);
+      if (data.propertyNumber != null && data.propertyNumber >= 1) {
+        setPropertyNumber(String(data.propertyNumber));
+      }
       setLookedUp(true);
 
       if (!data.appraisalValue || !data.auctionDate) {
@@ -190,6 +207,13 @@ export function NewCaseForm({ onClose }: Props) {
   }
 
   function handleCaseSerialKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      propertyRef.current?.focus();
+    }
+  }
+
+  function handleCasePropertyKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault();
       void lookupCase();
@@ -223,6 +247,7 @@ export function NewCaseForm({ onClose }: Props) {
       courtCode,
       courtName,
       caseNumber: fullCaseNumber,
+      propertyNumber: parsedPropertyNumber,
       address: address.trim() || undefined,
       latitude,
       longitude,
@@ -249,8 +274,7 @@ export function NewCaseForm({ onClose }: Props) {
               value={courtCode}
               onChange={(e) => {
                 setCourtCode(e.target.value);
-                setLookedUp(false);
-                setExclusiveAreaM2(undefined);
+                resetLookupFields();
               }}
             >
               <option value="">{ko.caseForm.courtPh}</option>
@@ -280,8 +304,7 @@ export function NewCaseForm({ onClose }: Props) {
                   value={caseYear}
                   onChange={(e) => {
                     setCaseYear(e.target.value.replace(/\D/g, '').slice(0, 4));
-                    setLookedUp(false);
-                    setExclusiveAreaM2(undefined);
+                    resetLookupFields();
                   }}
                   onKeyDown={handleCaseYearKeyDown}
                   aria-label={ko.caseForm.caseYear}
@@ -299,11 +322,29 @@ export function NewCaseForm({ onClose }: Props) {
                   value={caseSerial}
                   onChange={(e) => {
                     setCaseSerial(e.target.value.replace(/\D/g, '').slice(0, 6));
-                    setLookedUp(false);
-                    setExclusiveAreaM2(undefined);
+                    resetLookupFields();
                   }}
                   onKeyDown={handleCaseSerialKeyDown}
                   aria-label={ko.caseForm.caseSerial}
+                />
+                <span className="case-number-type case-number-label" aria-hidden>
+                  {ko.caseForm.propertyNumber}
+                </span>
+                <input
+                  ref={propertyRef}
+                  id="case-property"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
+                  className="case-number-property"
+                  value={propertyNumber}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '').slice(0, 2);
+                    setPropertyNumber(raw);
+                    resetLookupFields();
+                  }}
+                  onKeyDown={handleCasePropertyKeyDown}
+                  aria-label={ko.caseForm.propertyNumber}
                 />
               </div>
               <button

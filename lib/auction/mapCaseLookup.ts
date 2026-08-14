@@ -19,13 +19,19 @@ export type CourtAuctionCasePayload = {
     caseName?: string | null;
   } | null;
   items?: Array<{
+    propertyNumber?: number | null;
     address?: string | null;
     appraisedPrice?: number | null;
     saleDate?: string | null;
     failedBidCount?: number | null;
     auctionRound?: number | null;
+    minimumSalePrice?: number | null;
+    depositRate?: number | null;
+    depositAmount?: number | null;
+    exclusiveAreaM2?: number | null;
   }>;
   schedule?: Array<{
+    propertyNumber?: number | null;
     saleDate?: string | null;
     appraisedPrice?: number | null;
     minimumSalePrice?: number | null;
@@ -44,6 +50,7 @@ export type MappedAuctionCase = {
   courtCode: string;
   courtName: string;
   caseNumber: string;
+  propertyNumber: number;
   name: string;
   address: string;
   appraisalValue: number;
@@ -87,16 +94,57 @@ function pickTargetSchedule(
   return sorted[sorted.length - 1];
 }
 
+export function normalizePropertyNumber(value?: number | null): number {
+  if (value == null || !Number.isFinite(value) || value < 1) return 1;
+  return Math.floor(value);
+}
+
+export function parsePropertySeq(value: unknown): number | undefined {
+  if (value == null) return undefined;
+  const n = parseInt(String(value).trim(), 10);
+  return Number.isFinite(n) && n >= 1 ? n : undefined;
+}
+
+function pickPropertyItem<
+  T extends { propertyNumber?: number | null },
+>(items: T[] | undefined, propertyNumber: number): T | undefined {
+  if (!items?.length) return undefined;
+  const bySeq = items.find((item) => item.propertyNumber === propertyNumber);
+  if (bySeq) return bySeq;
+  const idx = propertyNumber - 1;
+  return items[idx] ?? items[0];
+}
+
+function filterScheduleForProperty(
+  schedule: NonNullable<CourtAuctionCasePayload['schedule']>,
+  propertyNumber: number,
+) {
+  const tagged = schedule.filter(
+    (row) => row.propertyNumber === propertyNumber,
+  );
+  if (tagged.length) return tagged;
+  if (propertyNumber === 1 && schedule.every((row) => row.propertyNumber == null)) {
+    return schedule;
+  }
+  return [];
+}
+
 export function mapCourtAuctionCase(
   payload: CourtAuctionCasePayload,
   courtCode: string,
   courtName?: string,
   inputCaseNumber?: string,
+  propertyNumberInput?: number,
 ): MappedAuctionCase | null {
   if (!payload.found || !payload.caseInfo) return null;
 
+  const propertyNumber = normalizePropertyNumber(propertyNumberInput);
+  const targetItem = pickPropertyItem(payload.items, propertyNumber);
+
   const address =
-    payload.items?.map((i) => i.address?.trim()).find(Boolean) ?? '';
+    targetItem?.address?.trim() ||
+    payload.items?.map((i) => i.address?.trim()).find(Boolean) ||
+    '';
   const caseNumber = formatDisplayCaseNumber(
     payload.caseInfo.caseNumber,
     payload.caseInfo.userCaseNumber,
@@ -109,59 +157,45 @@ export function mapCourtAuctionCase(
     '경매 물건';
 
   const schedule = payload.schedule ?? [];
-  const target = pickTargetSchedule(schedule);
-  const itemFallback = payload.items?.find(
-    (i) => (i.appraisedPrice ?? 0) > 0 || i.saleDate,
-  );
+  const propertySchedule = filterScheduleForProperty(schedule, propertyNumber);
+  const target = propertySchedule.length
+    ? pickTargetSchedule(propertySchedule)
+    : null;
 
   const appraisalValue =
-    target?.appraisedPrice ??
-    itemFallback?.appraisedPrice ??
-    schedule
-      .map((s) => s.appraisedPrice ?? 0)
-      .filter((n) => n > 0)
-      .at(-1) ??
-    0;
+    target?.appraisedPrice ?? targetItem?.appraisedPrice ?? 0;
 
   const auctionDate =
-    target?.saleDate ?? itemFallback?.saleDate ?? schedule.find((s) => s.saleDate)?.saleDate ?? '';
+    target?.saleDate ?? targetItem?.saleDate ?? '';
 
   const minimumSalePrice =
-    target?.minimumSalePrice ??
-    schedule.map((s) => s.minimumSalePrice ?? 0).filter((n) => n > 0).at(-1);
+    target?.minimumSalePrice ?? targetItem?.minimumSalePrice ?? undefined;
 
   const auctionRound =
     target?.auctionRound ??
-    payload.items
-      ?.map((i) => i.auctionRound ?? undefined)
-      .find((v) => v && v > 0) ??
+    targetItem?.auctionRound ??
     toAuctionRound(
-      target?.failedBidCount ??
-        payload.items
-          ?.map((i) => i.failedBidCount ?? undefined)
-          .find((v) => v !== undefined),
+      target?.failedBidCount ?? targetItem?.failedBidCount,
     );
 
   const deposit = resolveBidDeposit({
     appraisalValue,
     minimumSalePrice,
-    depositAmount: target?.depositAmount,
-    depositRate: target?.depositRate,
+    depositAmount: target?.depositAmount ?? targetItem?.depositAmount,
+    depositRate: target?.depositRate ?? targetItem?.depositRate,
   });
 
   const exclusiveAreaM2 =
     payload.exclusiveAreaM2 ??
-    payload.items
-      ?.map((i) => (i as { exclusiveAreaM2?: number | null }).exclusiveAreaM2)
-      .find((v) => v && v > 0) ??
-    payload.schedule
-      ?.map((s) => s.exclusiveAreaM2 ?? undefined)
-      .find((v) => v && v > 0);
+    targetItem?.exclusiveAreaM2 ??
+    propertySchedule.find((s) => s.exclusiveAreaM2 && s.exclusiveAreaM2 > 0)
+      ?.exclusiveAreaM2;
 
   return {
     courtCode: payload.caseInfo.courtCode?.trim() || courtCode,
     courtName: payload.caseInfo.courtName?.trim() || courtName || '',
     caseNumber,
+    propertyNumber,
     name,
     address,
     appraisalValue,

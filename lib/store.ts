@@ -19,6 +19,7 @@ function migrateCase(raw: CaseFile): CaseFile {
   return {
     ...raw,
     track,
+    propertyNumber: raw.propertyNumber ?? 1,
     bidOutcome:
       raw.bidOutcome ??
       (raw.stage === 'E' || raw.stage === 'done' ? 'won' : 'pending'),
@@ -69,6 +70,7 @@ export const localCaseStore: CaseStore = {
       id: createId(),
       name: input.name.trim(),
       caseNumber: input.caseNumber?.trim() ?? '',
+      propertyNumber: input.propertyNumber ?? 1,
       courtCode: input.courtCode?.trim() || undefined,
       courtName: input.courtName?.trim() || undefined,
       address: input.address?.trim() || undefined,

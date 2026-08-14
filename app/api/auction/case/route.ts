@@ -14,10 +14,17 @@ export async function POST(req: Request) {
       courtCode?: string;
       caseNumber?: string;
       courtName?: string;
+      propertyNumber?: number;
     };
 
     const courtCode = body.courtCode?.trim() ?? '';
     const caseNumber = normalizeCaseNumber(body.caseNumber ?? '');
+    const propertyNumber =
+      body.propertyNumber == null ||
+      !Number.isFinite(body.propertyNumber) ||
+      body.propertyNumber < 1
+        ? 1
+        : Math.floor(body.propertyNumber);
 
     if (!/^B\d{6}$/.test(courtCode)) {
       return NextResponse.json(
@@ -35,6 +42,7 @@ export async function POST(req: Request) {
     const raw = await getCourtAuctionClient().getCaseByCaseNumber(
       courtCode,
       caseNumber,
+      propertyNumber,
     );
 
     if (!raw.found) {
@@ -53,6 +61,7 @@ export async function POST(req: Request) {
       courtCode,
       body.courtName,
       body.caseNumber,
+      propertyNumber,
     );
 
     if (!mapped) {

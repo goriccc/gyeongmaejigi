@@ -167,4 +167,59 @@ describe('mapCourtAuctionCase', () => {
 
     expect(mapped?.exclusiveAreaM2).toBe(49.67);
   });
+
+  it('maps appraisal, min price, deposit for selected property number', () => {
+    const mapped = mapCourtAuctionCase(
+      {
+        found: true,
+        caseInfo: { caseNumber: '2024타경9999' },
+        items: [
+          {
+            propertyNumber: 1,
+            address: '물건 1',
+            appraisedPrice: 500_000_000,
+            minimumSalePrice: 400_000_000,
+            depositRate: 10,
+          },
+          {
+            propertyNumber: 2,
+            address: '물건 2',
+            appraisedPrice: 800_000_000,
+            minimumSalePrice: 640_000_000,
+            depositRate: 20,
+          },
+        ],
+        schedule: [
+          {
+            propertyNumber: 1,
+            saleDate: '2026-03-01',
+            appraisedPrice: 500_000_000,
+            minimumSalePrice: 400_000_000,
+            depositRate: 10,
+          },
+          {
+            propertyNumber: 2,
+            saleDate: '2026-04-01',
+            appraisedPrice: 800_000_000,
+            minimumSalePrice: 640_000_000,
+            depositRate: 20,
+          },
+        ],
+      },
+      'B000210',
+      '서울중앙지방법원',
+      '2024타경9999',
+      2,
+    );
+
+    expect(mapped).toMatchObject({
+      propertyNumber: 2,
+      address: '물건 2',
+      appraisalValue: 800_000_000,
+      minimumSalePrice: 640_000_000,
+      auctionDate: '2026-04-01',
+      bidDepositRate: 20,
+      bidDepositAmount: 128_000_000,
+    });
+  });
 });

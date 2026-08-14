@@ -1010,6 +1010,12 @@ textarea:focus {
   border: none;
 }
 
+.case-number-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--slate);
+}
+
 .case-number-serial {
   flex: 0 0 6ch;
   width: 6ch;
@@ -1017,6 +1023,14 @@ textarea:focus {
   text-align: center;
   font-family: var(--mono);
   letter-spacing: 0.02em;
+}
+
+.case-number-property {
+  flex: 0 0 3ch;
+  width: 3ch;
+  min-width: 3ch;
+  text-align: center;
+  font-family: var(--mono);
 }
 
 .case-lookup-btn {
