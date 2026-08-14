@@ -1385,6 +1385,10 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.won-exact-amt {
+  font-weight: 600;
+}
+
 .risk-note {
   font-size: 11.5px;
   color: var(--slate);
@@ -1993,6 +1997,16 @@ table.loan-table td {
   min-width: 4.8ch;
   max-width: 4.8ch;
   flex: 0 0 4.8ch;
+  text-align: right;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.conditional-won-input {
+  width: 9.6ch;
+  min-width: 9.6ch;
+  max-width: 9.6ch;
+  flex: 0 0 9.6ch;
   text-align: right;
   padding-left: 0;
   padding-right: 0;

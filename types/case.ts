@@ -164,12 +164,16 @@ export type CaseFile = {
     costRate: number;
     /** 미납관리비 (만원) */
     unpaidMgmtFeeMan?: number;
+    /** 명도비 (만원) */
+    evictionCostMan?: number;
     /** 농어촌특별세 (만원) */
     farmTaxMan?: number;
     /** 수리비 (만원) */
     repairCostMan?: number;
     /** 강제집행비 (만원) */
     forceExecCostMan?: number;
+    /** 기타비용 (만원) — 기본 30 */
+    miscOtherCostMan?: number;
     /** 공시가격·시가표준액 (원) — 국민주택채권 계산 */
     officialPrice?: number;
     /** auto | standard | large — 전용면적 기준 자동 또는 수동 */

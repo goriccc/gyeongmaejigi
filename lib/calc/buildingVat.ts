@@ -100,6 +100,29 @@ export function effectiveSellPrice(
   return Math.max(0, sellPrice - Math.max(0, buildingVatAmount));
 }
 
+const FARM_TAX_RATE = 0.002;
+
+export { FARM_TAX_RATE };
+
+/** 낙찰가(입찰가) × 0.2% — 원 단위 반올림 */
+export function calcFarmTaxWon(bidPrice: number): number {
+  if (bidPrice <= 0) return 0;
+  return Math.round(bidPrice * FARM_TAX_RATE);
+}
+
+/** 농어촌특별세 과세 여부 — 대형 + (전용 85㎡ 초과 또는 수동 대형) */
+export function farmTaxApplies(
+  propertySize: PropertySizeClass,
+  exclusiveAreaM2?: number | null,
+  propertySizeMode: PropertySizeMode = 'auto',
+): boolean {
+  if (propertySize !== 'large') return false;
+  if (exclusiveAreaM2 != null && exclusiveAreaM2 > 0) {
+    return exclusiveAreaM2 > FARM_TAX_EXCLUSIVE_AREA_M2;
+  }
+  return propertySizeMode === 'large';
+}
+
 /** 전용 85㎡ 초과 시 농어촌특별세 (낙찰가 × 0.2%) */
 export function suggestFarmTaxWon(
   bidPrice: number,
@@ -109,7 +132,31 @@ export function suggestFarmTaxWon(
   if (exclusiveAreaM2 == null || exclusiveAreaM2 <= FARM_TAX_EXCLUSIVE_AREA_M2) {
     return 0;
   }
-  return bidPrice * 0.002;
+  return calcFarmTaxWon(bidPrice);
+}
+
+export type ResolveFarmTaxParams = {
+  propertySize: PropertySizeClass;
+  bidPriceBeforeFarm: number;
+  exclusiveAreaM2?: number | null;
+  propertySizeMode?: PropertySizeMode;
+};
+
+/** 대형·85㎡ 초과 시 농어촌특별세 — 낙찰가 × 0.2% (원 반올림) */
+export function resolveFarmTaxWon(params: ResolveFarmTaxParams): number {
+  const {
+    propertySize,
+    bidPriceBeforeFarm: bidPrice,
+    exclusiveAreaM2,
+    propertySizeMode = 'auto',
+  } = params;
+  if (
+    !farmTaxApplies(propertySize, exclusiveAreaM2, propertySizeMode) ||
+    bidPrice <= 0
+  ) {
+    return 0;
+  }
+  return calcFarmTaxWon(bidPrice);
 }
 
 /** 매도가 대비 부가세율 — 추천 4% 이하, 보통 4.5% 이하, 비추천 4.5% 초과 */

@@ -6,25 +6,28 @@ import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { RiskRow } from '@/components/ui/RiskRow';
-import { calcBid, marginLabelText, resolveBidLoanRate, resolveBidMargin } from '@/lib/calc/bidCalculator';
+import { Badge } from '@/components/ui/Badge';
+import { Disclaimer } from '@/components/ui/Disclaimer';
+import { marginLabelText, resolveBidLoanRate, resolveBidMargin } from '@/lib/calc/bidCalculator';
+import { convergeBid } from '@/lib/calc/bidConverge';
 import {
   BuildingVatSection,
   buildingVatStateFromSaved,
   type BuildingVatSectionState,
 } from '@/components/bid/BuildingVatSection';
+import { WonExactAmt, WonExactLeadDisplay } from '@/components/bid/WonExactDisplay';
 import {
   resolveBuildingVatWon,
   resolvePropertySizeClass,
-  suggestFarmTaxWon,
+  farmTaxApplies,
   buildingVatRateVerdictFromAmount,
   buildingVatVerdictLabel,
 } from '@/lib/calc/buildingVat';
 import {
-  calcCostItems,
   sumConditionalCostsWon,
   type ConditionalCostsWon,
 } from '@/lib/calc/costItems';
-import { fmtWon, formatComma, parseNumberInput, pct } from '@/lib/format';
+import { formatComma, parseNumberInput, pct } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
 import { useDebouncedSave } from '@/lib/hooks/useDebouncedSave';
 import { afterBidCalcSaved } from '@/lib/stage';
@@ -32,62 +35,78 @@ import { normalizeCaseTrack } from '@/lib/caseUtils';
 import type { HousingBondApiResult } from '@/app/api/housing-bond/route';
 import type { BidOutcome, CaseFile } from '@/types/case';
 import { inferBrokerFeeRegion } from '@/lib/geo/inferBrokerFeeRegion';
+import { DEFAULT_MISC_OTHER_WON } from '@/data/taxTable';
+import { formatTradingBusinessTransferTaxMeta } from '@/lib/calc/tradingTax';
+import { loadEntryProfile } from '@/lib/entryProfile';
+import type { EntryMatchInputs } from '@/types/case';
 import { ko } from '@/messages/ko';
 
 type BidCalcSaved = NonNullable<CaseFile['bidCalcInputs']>;
 
-type ConditionalCostKey = 'unpaid' | 'farm' | 'repair' | 'force';
+type ConditionalCostKey = 'unpaid' | 'evict' | 'miscOther' | 'repair' | 'force';
 
 const CONDITIONAL_COST_KEYS: ConditionalCostKey[] = [
   'unpaid',
-  'farm',
+  'evict',
+  'miscOther',
   'repair',
   'force',
 ];
 
-function manwonFieldFromSaved(
+function defaultConditionalWonFields(): Record<ConditionalCostKey, string> {
+  return {
+    unpaid: '',
+    evict: '',
+    miscOther: formatComma(DEFAULT_MISC_OTHER_WON),
+    repair: '',
+    force: '',
+  };
+}
+
+function wonFieldFromSaved(
   saved: BidCalcSaved | undefined,
   key: ConditionalCostKey,
 ): string {
-  if (!saved) return '';
+  if (!saved) {
+    return key === 'miscOther' ? formatComma(DEFAULT_MISC_OTHER_WON) : '';
+  }
   const map: Record<ConditionalCostKey, number | undefined> = {
     unpaid: saved.unpaidMgmtFeeMan,
-    farm: saved.farmTaxMan,
+    evict: saved.evictionCostMan,
+    miscOther: saved.miscOtherCostMan,
     repair: saved.repairCostMan,
     force: saved.forceExecCostMan,
   };
-  const v = map[key];
-  return v != null ? String(v) : '';
+  const man = map[key];
+  if (man != null) return formatComma(man * 10_000);
+  return key === 'miscOther' ? formatComma(DEFAULT_MISC_OTHER_WON) : '';
 }
 
-function manwonFieldsFromSaved(
+function conditionalWonFieldsFromSaved(
   saved: BidCalcSaved | undefined,
 ): Record<ConditionalCostKey, string> {
+  if (!saved) return defaultConditionalWonFields();
   return {
-    unpaid: manwonFieldFromSaved(saved, 'unpaid'),
-    farm: manwonFieldFromSaved(saved, 'farm'),
-    repair: manwonFieldFromSaved(saved, 'repair'),
-    force: manwonFieldFromSaved(saved, 'force'),
+    unpaid: wonFieldFromSaved(saved, 'unpaid'),
+    evict: wonFieldFromSaved(saved, 'evict'),
+    miscOther: wonFieldFromSaved(saved, 'miscOther'),
+    repair: wonFieldFromSaved(saved, 'repair'),
+    force: wonFieldFromSaved(saved, 'force'),
   };
 }
 
-function parseManwonInput(value: string): number | undefined {
+function parseWonField(value: string): number | undefined {
   if (value.trim() === '') return undefined;
-  return parseNumberInput(value);
+  const n = parseNumberInput(value);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
-function manwonToWon(value: string): number | undefined {
-  const man = parseManwonInput(value);
-  if (man == null) return undefined;
-  return man * 10_000;
-}
-
-function conditionalWonFromManwon(
+function conditionalWonFromFields(
   fields: Record<ConditionalCostKey, string>,
 ): ConditionalCostsWon {
   const out: ConditionalCostsWon = {};
   for (const key of CONDITIONAL_COST_KEYS) {
-    const won = manwonToWon(fields[key]);
+    const won = parseWonField(fields[key]);
     if (won != null) out[key] = won;
   }
   return out;
@@ -95,23 +114,44 @@ function conditionalWonFromManwon(
 
 function conditionalManForSave(
   fields: Record<ConditionalCostKey, string>,
+  farmTaxWonAuto?: number,
 ): Pick<
   BidCalcSaved,
-  'unpaidMgmtFeeMan' | 'farmTaxMan' | 'repairCostMan' | 'forceExecCostMan'
+  | 'unpaidMgmtFeeMan'
+  | 'evictionCostMan'
+  | 'farmTaxMan'
+  | 'miscOtherCostMan'
+  | 'repairCostMan'
+  | 'forceExecCostMan'
 > {
   const out: Pick<
     BidCalcSaved,
-    'unpaidMgmtFeeMan' | 'farmTaxMan' | 'repairCostMan' | 'forceExecCostMan'
+    | 'unpaidMgmtFeeMan'
+    | 'evictionCostMan'
+    | 'farmTaxMan'
+    | 'miscOtherCostMan'
+    | 'repairCostMan'
+    | 'forceExecCostMan'
   > = {};
-  const man = parseManwonInput(fields.unpaid);
-  if (man != null) out.unpaidMgmtFeeMan = man;
-  const farm = parseManwonInput(fields.farm);
-  if (farm != null) out.farmTaxMan = farm;
-  const repair = parseManwonInput(fields.repair);
-  if (repair != null) out.repairCostMan = repair;
-  const force = parseManwonInput(fields.force);
-  if (force != null) out.forceExecCostMan = force;
+  const unpaid = parseWonField(fields.unpaid);
+  if (unpaid != null) out.unpaidMgmtFeeMan = unpaid / 10_000;
+  const evict = parseWonField(fields.evict);
+  if (evict != null) out.evictionCostMan = evict / 10_000;
+  const miscOther = parseWonField(fields.miscOther);
+  if (miscOther != null) out.miscOtherCostMan = miscOther / 10_000;
+  if (farmTaxWonAuto != null && farmTaxWonAuto > 0) {
+    out.farmTaxMan = Math.round(farmTaxWonAuto / 10_000);
+  }
+  const repair = parseWonField(fields.repair);
+  if (repair != null) out.repairCostMan = repair / 10_000;
+  const force = parseWonField(fields.force);
+  if (force != null) out.forceExecCostMan = force / 10_000;
   return out;
+}
+
+function parseManwonInput(value: string): number | undefined {
+  if (value.trim() === '') return undefined;
+  return parseNumberInput(value);
 }
 
 function parseAreaField(value: string): number | undefined {
@@ -157,9 +197,9 @@ export default function BidCalcPage() {
   const [costRate, setCostRate] = useState(
     saved?.costRate != null ? `${(saved.costRate * 100).toFixed(1)}%` : '5.0%',
   );
-  const [conditionalMan, setConditionalMan] = useState<
+  const [conditionalWonFields, setConditionalWonFields] = useState<
     Record<ConditionalCostKey, string>
-  >(() => manwonFieldsFromSaved(saved));
+  >(() => conditionalWonFieldsFromSaved(saved));
   const [officialPrice, setOfficialPrice] = useState(
     saved?.officialPrice ? formatComma(saved.officialPrice) : '',
   );
@@ -182,7 +222,7 @@ export default function BidCalcPage() {
       setLoanRate(resolveBidLoanRate(s.loanRate));
       setMargin(resolveBidMargin(s.margin));
       setCostRate(`${(s.costRate * 100).toFixed(1)}%`);
-      setConditionalMan(manwonFieldsFromSaved(s));
+      setConditionalWonFields(conditionalWonFieldsFromSaved(s));
       setOfficialPrice(
         s.officialPrice ? formatComma(s.officialPrice) : '',
       );
@@ -263,15 +303,12 @@ export default function BidCalcPage() {
     [activeCase?.address, activeCase?.courtName],
   );
 
-  const conditionalWon = useMemo(
-    () => conditionalWonFromManwon(conditionalMan),
-    [conditionalMan],
-  );
+  const entryInputs = useMemo((): EntryMatchInputs | null => {
+    if (activeCase?.entryMatchInputs) return activeCase.entryMatchInputs;
+    return loadEntryProfile()?.inputs ?? null;
+  }, [activeCase?.entryMatchInputs, activeCase?.id]);
 
-  const conditionalExtra = useMemo(
-    () => sumConditionalCostsWon(conditionalWon),
-    [conditionalWon],
-  );
+  const entryProfileConfigured = entryInputs != null;
 
   const sellPriceWon = parseNumberInput(sellPrice);
 
@@ -317,16 +354,37 @@ export default function BidCalcPage() {
     buildingVatSaved,
   ]);
 
-  const bid = useMemo(() => {
+  const otherConditionalWon = useMemo(
+    () => conditionalWonFromFields(conditionalWonFields),
+    [conditionalWonFields],
+  );
+
+  const otherConditionalExtra = useMemo(
+    () => sumConditionalCostsWon(otherConditionalWon),
+    [otherConditionalWon],
+  );
+
+  const converged = useMemo(() => {
     const cost = parseFloat(costRate) / 100 || 0.05;
-    return calcBid({
+    const m = Math.min(6, Math.max(1, parseFloat(months) || 6));
+    return convergeBid({
       sellPrice: sellPriceWon,
-      months: Math.min(6, Math.max(1, parseFloat(months) || 6)),
+      months: m,
       loanRate: loanRate / 100,
       margin: margin / 100,
       costRate: cost,
-      conditionalExtra,
+      conditionalExtra: otherConditionalExtra,
       buildingVat: buildingVatWon,
+      propertySize: propertySizeClass,
+      exclusiveAreaM2: exclusiveAreaResolved,
+      propertySizeMode: buildingVatState.propertySizeMode,
+      conditionalWon: otherConditionalWon,
+      housingBond: housingBondCost,
+      brokerFeeRegion: {
+        regionId: brokerFeeRegionResolved.regionId,
+        regionProfile: brokerFeeRegionResolved.profile,
+      },
+      entryInputs,
     });
   }, [
     sellPriceWon,
@@ -334,58 +392,59 @@ export default function BidCalcPage() {
     loanRate,
     margin,
     costRate,
-    conditionalExtra,
+    otherConditionalExtra,
     buildingVatWon,
-  ]);
-
-  const farmTaxHint = useMemo(() => {
-    if (propertySizeClass !== 'large') return null;
-    const suggested = suggestFarmTaxWon(bid.bidPrice, exclusiveAreaResolved);
-    if (suggested <= 0) return null;
-    return ko.bidCalc.farmTaxSuggest.replace('{amount}', fmtWon(suggested));
-  }, [propertySizeClass, bid.bidPrice, exclusiveAreaResolved]);
-
-  const costs = useMemo(() => {
-    const cost = parseFloat(costRate) / 100 || 0.05;
-    return calcCostItems(
-      bid.bidPrice,
-      sellPriceWon,
-      bid.interestCost,
-      bid.loanPrincipal,
-      Math.min(6, Math.max(1, parseFloat(months) || 6)),
-      loanRate / 100,
-      cost,
-      undefined,
-      undefined,
-      conditionalWon,
-      housingBondCost,
-      {
-        regionId: brokerFeeRegionResolved.regionId,
-        regionProfile: brokerFeeRegionResolved.profile,
-      },
-      buildingVatWon,
-    );
-  }, [
-    bid,
-    sellPriceWon,
-    months,
-    loanRate,
-    costRate,
-    conditionalWon,
+    propertySizeClass,
+    exclusiveAreaResolved,
+    buildingVatState.propertySizeMode,
+    otherConditionalWon,
     housingBondCost,
     brokerFeeRegionResolved,
-    buildingVatWon,
+    entryInputs,
   ]);
 
-  function setConditionalManField(key: ConditionalCostKey, raw: string) {
-    const digits = raw.replace(/[^\d]/g, '').slice(0, 4);
-    setConditionalMan((prev) => ({
+  const bid = converged;
+  const costs = converged.costs;
+  const actualPreTaxMarginPct =
+    bid.effectiveSellPrice > 0
+      ? (bid.grossProfit / bid.effectiveSellPrice) * 100
+      : 0;
+
+  const farmTaxAutoApplies = useMemo(
+    () =>
+      farmTaxApplies(
+        propertySizeClass,
+        exclusiveAreaResolved,
+        buildingVatState.propertySizeMode,
+      ),
+    [
+      propertySizeClass,
+      exclusiveAreaResolved,
+      buildingVatState.propertySizeMode,
+    ],
+  );
+
+  const farmTaxWon = useMemo(() => {
+    if (!farmTaxAutoApplies) return 0;
+    const farmItem = costs.items.find((i) => i.key === 'farm');
+    return farmItem?.amount ?? 0;
+  }, [farmTaxAutoApplies, costs.items]);
+
+  function setConditionalWonField(key: ConditionalCostKey, raw: string) {
+    const n = parseNumberInput(raw);
+    setConditionalWonFields((prev) => ({
       ...prev,
-      [key]: digits,
+      [key]: raw.trim() === '' ? '' : formatComma(n),
     }));
   }
 
   function renderCostAmount(item: (typeof costs.items)[number]) {
+    if (item.key === 'farm') {
+      if (farmTaxWon <= 0) {
+        return ko.bidCalc.farmTaxExempt;
+      }
+      return <WonExactLeadDisplay meta="0.2%" amount={farmTaxWon} />;
+    }
     if (
       item.kind === 'conditional' &&
       CONDITIONAL_COST_KEYS.includes(item.key as ConditionalCostKey)
@@ -396,22 +455,21 @@ export default function BidCalcPage() {
           <input
             type="text"
             inputMode="numeric"
-            className="loan-input manwon-input"
-            value={conditionalMan[key]}
-            onChange={(e) => setConditionalManField(key, e.target.value)}
+            className="loan-input conditional-won-input"
+            value={conditionalWonFields[key]}
+            onChange={(e) => setConditionalWonField(key, e.target.value)}
             placeholder="0"
-            maxLength={4}
-            aria-label={`${item.name} (만원)`}
+            aria-label={`${item.name} (원)`}
           />
-          <span className="manwon-unit">만원</span>
+          <span className="manwon-unit">원</span>
         </span>
       );
     }
     if (item.amount == null) return undefined;
     if (item.rate != null) {
-      return `${fmtWon(item.amount)} (${pct(item.rate)})`;
+      return <WonExactLeadDisplay meta={pct(item.rate)} amount={item.amount} />;
     }
-    return fmtWon(item.amount);
+    return <WonExactAmt amount={item.amount} />;
   }
 
   const savePayload = useMemo(
@@ -421,7 +479,10 @@ export default function BidCalcPage() {
       loanRate,
       margin,
       costRate: parseFloat(costRate) / 100 || 0.05,
-      conditionalMan: conditionalManForSave(conditionalMan),
+      conditionalMan: conditionalManForSave(
+        conditionalWonFields,
+        farmTaxAutoApplies ? farmTaxWon : undefined,
+      ),
       officialPrice: officialPriceWon > 0 ? officialPriceWon : undefined,
       buildingVat: buildingVatSaved,
       exclusiveAreaM2: buildingVatSaved.exclusiveAreaM2,
@@ -432,9 +493,11 @@ export default function BidCalcPage() {
       loanRate,
       margin,
       costRate,
-      conditionalMan,
+      conditionalWonFields,
       officialPriceWon,
       buildingVatSaved,
+      farmTaxAutoApplies,
+      farmTaxWon,
     ],
   );
 
@@ -451,6 +514,8 @@ export default function BidCalcPage() {
           margin: payload.margin,
           costRate: payload.costRate,
           unpaidMgmtFeeMan: payload.conditionalMan.unpaidMgmtFeeMan,
+          evictionCostMan: payload.conditionalMan.evictionCostMan,
+          miscOtherCostMan: payload.conditionalMan.miscOtherCostMan,
           farmTaxMan: payload.conditionalMan.farmTaxMan,
           repairCostMan: payload.conditionalMan.repairCostMan,
           forceExecCostMan: payload.conditionalMan.forceExecCostMan,
@@ -505,6 +570,20 @@ export default function BidCalcPage() {
         <div className="banner">{ko.common.noActiveCase}</div>
       ) : null}
 
+      <div className="banner banner-soft">
+        {entryProfileConfigured ? (
+          <>
+            {ko.bidCalc.entryProfileApplied}{' '}
+            <Badge tone={bid.loanBadgeTone}>{bid.loanBadge}</Badge>
+          </>
+        ) : (
+          <>
+            {ko.bidCalc.entryProfileDefault}{' '}
+            <Link href="/">{ko.bidCalc.entryProfileLink}</Link>
+          </>
+        )}
+      </div>
+
       <BuildingVatSection
         sellPriceWon={sellPriceWon}
         caseExclusiveAreaM2={activeCase?.exclusiveAreaM2}
@@ -554,11 +633,19 @@ export default function BidCalcPage() {
               국민주택채권 매입·할인비 자동 계산에 사용합니다. 할인율은
               당일(주말·공휴일은 직전 영업일) 주택도시기금 고시 기준입니다.
               {housingBondLoading ? ' 조회 중…' : null}
-              {housingBond && !housingBondLoading
-                ? housingBond.exempt
-                  ? ' · 매입 면제 구간'
-                  : ` · 채권 ${fmtWon(housingBond.purchaseAmount)} / 본인부담 ${fmtWon(housingBond.customerBurden)} (${housingBond.basisDate})`
-                : null}
+              {housingBond && !housingBondLoading ? (
+                housingBond.exempt ? (
+                  ' · 매입 면제 구간'
+                ) : (
+                  <>
+                    {' · 채권 '}
+                    <WonExactAmt amount={housingBond.purchaseAmount} />
+                    {' / 본인부담 '}
+                    <WonExactAmt amount={housingBond.customerBurden} />
+                    {` (${housingBond.basisDate})`}
+                  </>
+                )
+              ) : null}
               {housingBondError ? ` · ${housingBondError}` : null}
             </p>
           </div>
@@ -598,44 +685,61 @@ export default function BidCalcPage() {
           </div>
           <div className="field calc-range-field">
             <label htmlFor="marginRange">
-              목표 마진{' '}
+              {ko.bidCalc.targetMarginLabel}{' '}
               <span className="range-val">
-                {marginLabelText(margin)} ({margin}%)
+                {marginLabelText(margin)} ({margin.toFixed(1)}%)
               </span>
             </label>
             <input
               id="marginRange"
               type="range"
               min={3}
-              max={15}
-              step={0.5}
+              max={20}
+              step={0.1}
               value={margin}
               onChange={(e) => setMargin(parseFloat(e.target.value))}
             />
             <div className="range-ticks">
-              <span>저마진 3%</span>
-              <span>고마진 15%</span>
+              <span>저마진 5% 이하</span>
+              <span>고마진 10% 초과</span>
             </div>
-            <p className="field-hint calc-range-hint-spacer" />
+            <p className="field-hint">{ko.bidCalc.targetMarginHint}</p>
           </div>
         </div>
       </Section>
 
       <ResultPanel
         mark="역산 결과 (실시간 계산)"
-        figure={fmtWon(bid.bidPrice)}
+        figure={
+          <>
+            입찰가 : <WonExactAmt amount={bid.bidPrice} />
+          </>
+        }
         caption={
           bid.conditionalExtra > 0
-            ? '2차 취득 산정 입찰가 — 조건부 비용을 선반영해 역산했습니다'
-            : '2차 취득 산정 입찰가 (원단위 상세는 다운로드에서 확인)'
+            ? `2차 취득 산정 입찰가 — 조건부 비용 선반영 · ${ko.bidCalc.preTaxProfitHint}`
+            : `2차 취득 산정 입찰가 · ${ko.bidCalc.preTaxProfitHint}`
         }
         rows={[
+          {
+            label: ko.bidCalc.ltvApplied,
+            value: (
+              <>
+                {(bid.ltvApplied * 100).toFixed(0)}%{' '}
+                <Badge tone={bid.loanBadgeTone}>{bid.loanBadge}</Badge>
+              </>
+            ),
+          },
+          {
+            label: ko.bidCalc.marginTargetAmt,
+            value: <WonExactAmt amount={bid.marginTargetAmt} />,
+          },
+          {
+            label: ko.bidCalc.effectiveSellPrice,
+            value: <WonExactAmt amount={bid.effectiveSellPrice} />,
+          },
           ...(bid.buildingVat > 0
             ? [
-                {
-                  label: '실질 매도가',
-                  value: fmtWon(bid.effectiveSellPrice),
-                },
                 {
                   label: '건물분 부가세',
                   value: (() => {
@@ -650,23 +754,66 @@ export default function BidCalcPage() {
                     const suffix = verdict
                       ? ` · ${buildingVatVerdictLabel(verdict)}`
                       : '';
-                    return `−${fmtWon(bid.buildingVat)} (${pct(rate)}${suffix})`;
+                    return (
+                      <WonExactLeadDisplay
+                        meta={`${pct(rate)}${suffix}`}
+                        amount={bid.buildingVat}
+                        minus
+                      />
+                    );
                   })(),
                 },
               ]
             : []),
-          ...(bid.conditionalExtra > 0
-            ? [
-                {
-                  label: '조건부 비용 선반영',
-                  value: `−${fmtWon(bid.conditionalExtra)}`,
-                },
-              ]
-            : []),
-          { label: '세전 목표수익', value: fmtWon(bid.grossProfit) },
           {
-            label: '세후 예상수익 (매매사업자 기준)',
-            value: fmtWon(bid.netProfit),
+            label: '입찰가',
+            value: <WonExactAmt amount={bid.bidPrice} minus />,
+          },
+          {
+            label: ko.bidCalc.detailedCost,
+            value: <WonExactAmt amount={bid.profitDetailedTotal} minus />,
+          },
+          {
+            label: ko.bidCalc.preTaxProfit,
+            value: (
+              <>
+                <WonExactAmt amount={bid.grossProfit} />{' '}
+                <span
+                  style={{
+                    fontFamily: 'var(--mono)',
+                    fontSize: 11,
+                    color: 'var(--slate)',
+                  }}
+                >
+                  ({ko.bidCalc.actualMarginRate}{' '}
+                  {actualPreTaxMarginPct.toFixed(1)}%)
+                </span>
+              </>
+            ),
+          },
+          {
+            label: ko.bidCalc.transferTax,
+            value: (
+              <WonExactLeadDisplay
+                meta={formatTradingBusinessTransferTaxMeta(bid.grossProfit)}
+                amount={bid.transferTax}
+                minus
+              />
+            ),
+          },
+          {
+            label: ko.bidCalc.localIncomeTax,
+            value: (
+              <WonExactLeadDisplay meta="10%" amount={bid.localIncomeTax} minus />
+            ),
+          },
+          {
+            label: '세후 예상수익',
+            value: <WonExactAmt amount={bid.netProfit} />,
+          },
+          {
+            label: ko.bidCalc.investedCapital,
+            value: <WonExactAmt amount={bid.invested} />,
           },
           {
             label: '실투자금 대비 수익률',
@@ -691,15 +838,17 @@ export default function BidCalcPage() {
             </span>
           </>
         }
-        note='취득 비용률(개략) 안에 들어가는 항목을 실제 %와 금액으로 풀어봤습니다. 조건부 항목은 만원 단위로 입력하면 입찰가 역산과 상세 합계에 함께 반영됩니다.'
+        note='취득 비용률(개략)과 비교할 수 있도록 항목별 금액을 풀어 보여 줍니다. 입찰가 역산은 V11 엑셀과 같이 1차(개략) + (개략−상세)×50% 방식입니다.'
       >
         {costs.items.map((item) => (
           <RiskRow
             key={item.key}
             name={item.name}
             note={
-              item.key === 'farm' && farmTaxHint
-                ? `${item.note} · ${farmTaxHint}`
+              item.key === 'farm'
+                ? farmTaxWon > 0
+                  ? `${item.note} · ${ko.bidCalc.farmTaxAutoNote}`
+                  : `${item.note} · ${ko.bidCalc.farmTaxExemptNote}`
                 : item.note
             }
             amount={renderCostAmount(item)}
@@ -719,37 +868,35 @@ export default function BidCalcPage() {
         >
           <span>필수 항목 합계 (상세)</span>
           <span style={{ fontFamily: 'var(--mono)' }}>
-            {fmtWon(costs.requiredTotal)}
+            <WonExactAmt amount={costs.requiredTotal} />
           </span>
         </div>
         {costs.conditionalTotal > 0 ? (
           <div className="result-row">
             <span>조건부 항목 합계</span>
             <span style={{ fontFamily: 'var(--mono)' }}>
-              {fmtWon(costs.conditionalTotal)}
+              <WonExactAmt amount={costs.conditionalTotal} />
             </span>
           </div>
         ) : null}
         <div className="result-row">
           <span>상세 합계 (필수 + 조건부)</span>
           <span style={{ fontFamily: 'var(--mono)' }}>
-            {fmtWon(costs.detailedTotal)}
+            <WonExactAmt amount={costs.detailedTotal} />
           </span>
         </div>
         <div className="result-row">
           <span>취득 비용률(개략) 적용 금액</span>
           <span style={{ fontFamily: 'var(--mono)' }}>
-            {fmtWon(costs.approxTotal)}
+            <WonExactAmt amount={costs.approxTotal} />
           </span>
         </div>
         <div className="result-row">
           <span>차이 (개략 − 상세)</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>{fmtWon(costs.diff)}</span>
+          <span style={{ fontFamily: 'var(--mono)' }}>
+            <WonExactAmt amount={costs.diff} />
+          </span>
         </div>
-        <p className="s-note" style={{ marginTop: 10 }}>
-          개략 비용률과 상세 합계가 차이 나는 만큼, 실제 V11 계산기처럼 그
-          차액의 일부를 입찰가에 재반영하면 더 정교한 값이 나옵니다.
-        </p>
       </Section>
 
       {showBidOutcome ? (
@@ -789,6 +936,10 @@ export default function BidCalcPage() {
           ) : null}
         </Section>
       ) : null}
+
+      <p className="field-hint">{ko.bidCalc.transferTaxHint}</p>
+
+      <Disclaimer>{ko.bidCalc.pageDisclaimer}</Disclaimer>
     </>
   );
 }

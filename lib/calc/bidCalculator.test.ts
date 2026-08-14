@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   calcBid,
+  calcInvestedCapital,
+  calcNetYield,
   marginLabelText,
   resolveBidLoanRate,
   resolveBidMargin,
 } from './bidCalculator';
 import { calcCostItems, brokerFeeRate } from './costItems';
 import { rankLoanOffers } from './loanCompare';
+import {
+  calcNetProfitAfterBusinessTax,
+  calcTradingBusinessTransferTax,
+} from './tradingTax';
 
 describe('calcBid', () => {
   it('목업 기본값과 근접한 입찰가', () => {
@@ -20,7 +26,27 @@ describe('calcBid', () => {
     // 580M - 5% - 5.5% = 580M * 0.895 = 519.1M ... wait
     // bid = sell - sell*cost - sell*margin = sell*(1-0.05-0.055) = 580M*0.895
     expect(result.bidPrice).toBeCloseTo(580_000_000 * 0.895, -2);
-    expect(result.grossProfit).toBeCloseTo(580_000_000 * 0.055, -2);
+    expect(result.grossProfit).toBeGreaterThan(0);
+    expect(result.transferTax).toBeCloseTo(
+      calcTradingBusinessTransferTax(result.grossProfit),
+      0,
+    );
+    expect(result.netProfit).toBeCloseTo(
+      result.grossProfit - result.transferTax - result.localIncomeTax,
+      0,
+    );
+    expect(result.invested).toBeCloseTo(
+      calcInvestedCapital(
+        result.bidPrice,
+        result.loanPrincipal,
+        result.profitDetailedTotal,
+      ),
+      0,
+    );
+    expect(result.netYield).toBeCloseTo(
+      calcNetYield(result.netProfit, result.invested),
+      1,
+    );
     expect(result.netYield).toBeGreaterThan(0);
   });
 
@@ -61,7 +87,15 @@ describe('calcBid', () => {
       buildingVat: 17_524_910,
     });
     expect(withVat.bidPrice).toBe(base.bidPrice);
-    expect(withVat.netProfit).toBeCloseTo(base.netProfit - 17_524_910, 0);
+    expect(withVat.profitDetailedTotal).toBeCloseTo(base.profitDetailedTotal, -2);
+    expect(withVat.grossProfit).toBeCloseTo(
+      base.grossProfit - 17_524_910,
+      0,
+    );
+    expect(withVat.netProfit).toBeCloseTo(
+      calcNetProfitAfterBusinessTax(base.grossProfit - 17_524_910),
+      0,
+    );
     expect(withVat.effectiveSellPrice).toBeCloseTo(
       511_000_000 - 17_524_910,
       0,
@@ -72,8 +106,10 @@ describe('calcBid', () => {
 describe('marginLabelText', () => {
   it('구간 라벨', () => {
     expect(marginLabelText(3)).toBe('저마진');
+    expect(marginLabelText(5)).toBe('저마진');
     expect(marginLabelText(5.5)).toBe('중마진');
-    expect(marginLabelText(10)).toBe('고마진');
+    expect(marginLabelText(10)).toBe('중마진');
+    expect(marginLabelText(10.5)).toBe('고마진');
   });
 });
 
@@ -164,7 +200,8 @@ describe('rankLoanOffers', () => {
         },
       ],
       bid.bidPrice,
-      bid.grossProfit,
+      bid.effectiveSellPrice,
+      bid.financeFreeDetailed,
       6,
     );
     expect(ranked[0].isBest).toBe(true);

@@ -7,10 +7,18 @@ import {
   calcBrokerFee,
   type CalcBrokerFeeOptions,
 } from './brokerFee';
-import { eduTaxRate, progressiveAcquisitionTaxRate } from './acquisitionTax';
+import {
+  acquisitionTaxRate,
+  eduTaxRate,
+  firstTimeTaxDeduction,
+  type HouseCount,
+  type RegZone,
+} from './acquisitionTax';
+import type { AcquisitionTaxContext } from './bidPolicy';
 import {
   buildingVatRateVerdictFromAmount,
   buildingVatVerdictLabel,
+  type PropertySizeClass,
 } from './buildingVat';
 
 export { brokerFeeRate } from './brokerFee';
@@ -26,7 +34,9 @@ export type CostItem = {
 
 export type ConditionalCostsWon = {
   unpaid?: number;
+  evict?: number;
   farm?: number;
+  miscOther?: number;
   repair?: number;
   force?: number;
 };
@@ -36,13 +46,17 @@ export type HousingBondCostInput = {
   note: string;
 };
 
+export type CostItemsTaxOptions = Partial<AcquisitionTaxContext>;
+
 /** 조건부 비용 4종 합계(원) */
 export function sumConditionalCostsWon(
   conditional: ConditionalCostsWon = {},
 ): number {
   return (
     (conditional.unpaid ?? 0) +
+    (conditional.evict ?? 0) +
     (conditional.farm ?? 0) +
+    (conditional.miscOther ?? 0) +
     (conditional.repair ?? 0) +
     (conditional.force ?? 0)
   );
@@ -86,9 +100,32 @@ export function calcCostItems(
   housingBond: HousingBondCostInput | null = null,
   brokerFeeRegion: CalcBrokerFeeOptions = {},
   buildingVat = 0,
+  propertySize: PropertySizeClass = 'standard',
+  taxOptions: CostItemsTaxOptions = {},
 ): CostItemsResult {
-  const taxRate = progressiveAcquisitionTaxRate(bid);
-  const taxAmt = bid * taxRate;
+  const houseCount = (taxOptions.houseCount ?? 0) as HouseCount;
+  const regZone = (taxOptions.regZone ?? 'none') as RegZone;
+  const lowPriceException = taxOptions.lowPriceException ?? false;
+  const dispositionPlanned = taxOptions.dispositionPlanned ?? false;
+  const firstTimeBuyer = taxOptions.firstTimeBuyer ?? false;
+  const taxRate = acquisitionTaxRate(
+    bid,
+    houseCount,
+    regZone,
+    lowPriceException,
+    dispositionPlanned,
+  );
+  const taxRaw = bid * taxRate;
+  const taxDeduction = firstTimeTaxDeduction(firstTimeBuyer, bid, taxRaw);
+  const taxAmt = taxRaw - taxDeduction;
+  const taxNote =
+    taxDeduction > 0
+      ? `생애최초 감면 ${Math.round(taxDeduction / 10_000)}만원 반영`
+      : houseCount >= 2
+        ? `다주택 중과 ${(taxRate * 100).toFixed(0)}% (제1장 주택수·규제 반영)`
+        : houseCount === 1 && regZone === 'adjusted'
+          ? `규제지역 1주택 ${(taxRate * 100).toFixed(0)}%`
+          : '낙찰가 구간별 누진 (6억 이하 1% · 6~9억 구간 1~3% · 9억 초과 3%)';
   const eduRate = eduTaxRate(bid, taxRate);
   const eduAmt = bid * eduRate;
   const prepayFee =
@@ -106,7 +143,7 @@ export function calcCostItems(
     {
       key: 'tax',
       name: '취득세',
-      note: '낙찰가 구간별 누진 (6억 이하 1% · 6~9억 구간 1~3% · 9억 초과 3%, 다주택 중과 별도)',
+      note: taxNote,
       amount: taxAmt,
       rate: taxRate,
       kind: 'required',
@@ -138,7 +175,7 @@ export function calcCostItems(
     {
       key: 'interest',
       name: '금융비용 (경락대출 이자)',
-      note: '대출원금 × 이자율 × 보유개월 — 위 대출이자율 슬라이더에 연동됨',
+      note: '제1장 LTV 기준 대출원금 × 이자율 × 보유개월 — 위 대출이자율 슬라이더에 연동',
       amount: interestCost,
       rate: loanRate,
       kind: 'required',
@@ -152,14 +189,6 @@ export function calcCostItems(
       kind: 'required',
     },
     {
-      key: 'evict',
-      name: '명도비',
-      note: '평균 250~300만원 (32평 기준)',
-      amount: FIXED_COSTS.eviction,
-      rate: null,
-      kind: 'required',
-    },
-    {
       key: 'broker',
       name: '중개보수 (매도시)',
       note: brokerFeeNote(broker),
@@ -168,10 +197,10 @@ export function calcCostItems(
       kind: 'required',
     },
     {
-      key: 'misc',
-      name: '말소비 · 기타비용',
-      note: '말소비 5~10만원, 교통비·명도 선물·입주청소 등 평균 50만원',
-      amount: FIXED_COSTS.misc,
+      key: 'cancellation',
+      name: '말소비',
+      note: '등기 말소 — 10만원 가정치',
+      amount: FIXED_COSTS.cancellation,
       rate: null,
       kind: 'required',
     },
@@ -196,6 +225,19 @@ export function calcCostItems(
           },
         ]
       : []),
+    ...(propertySize === 'large'
+      ? [
+          {
+            key: 'farm',
+            name: '농어촌특별세',
+            note: '전용 85㎡ 초과 대형 — 낙찰가×0.2% (85㎡ 이하는 면제)',
+            amount: conditional.farm ?? 0,
+            rate:
+              conditional.farm && bid > 0 ? conditional.farm / bid : null,
+            kind: 'required' as const,
+          },
+        ]
+      : []),
     {
       key: 'unpaid',
       name: '미납관리비',
@@ -205,10 +247,18 @@ export function calcCostItems(
       kind: 'conditional',
     },
     {
-      key: 'farm',
-      name: '농어촌특별세',
-      note: '전용 85㎡ 초과시 0.2%, 이하는 면제',
-      amount: conditional.farm ?? null,
+      key: 'evict',
+      name: '명도비',
+      note: '평균 250~300만원 (32평 기준) — 만원 단위 입력',
+      amount: conditional.evict ?? null,
+      rate: null,
+      kind: 'conditional',
+    },
+    {
+      key: 'miscOther',
+      name: '기타비용',
+      note: '교통비·명도 선물·입주청소 등 — 기본 30만원',
+      amount: conditional.miscOther ?? null,
       rate: null,
       kind: 'conditional',
     },
@@ -247,4 +297,23 @@ export function calcCostItems(
     approxTotal,
     diff: approxTotal - detailedTotal,
   };
+}
+
+/** 금융비용(이자·중도상환) 제외 상세비용 — 대출상품별 재계산용 */
+export function financeFreeDetailedTotal(costs: CostItemsResult): number {
+  const interest = costs.items.find((i) => i.key === 'interest')?.amount ?? 0;
+  const prepay = costs.items.find((i) => i.key === 'prepay')?.amount ?? 0;
+  return costs.detailedTotal - interest - prepay;
+}
+
+/**
+ * 세전수익 산출용 상세비용.
+ * 실질 매도가에서 이미 차감한 건물분 부가세는 required 합계에서 제외합니다.
+ */
+export function profitDetailedTotal(
+  costs: CostItemsResult,
+  buildingVat: number,
+): number {
+  const vat = Math.max(0, buildingVat);
+  return Math.max(0, costs.requiredTotal - vat) + costs.conditionalTotal;
 }

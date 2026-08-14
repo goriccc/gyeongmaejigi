@@ -5,6 +5,9 @@ import {
   effectiveSellPrice,
   isLargeByExclusiveArea,
   resolvePropertySizeClass,
+  calcFarmTaxWon,
+  farmTaxApplies,
+  resolveFarmTaxWon,
   suggestFarmTaxWon,
   buildingVatRateVerdict,
   buildingVatRateVerdictFromAmount,
@@ -120,5 +123,39 @@ describe('suggestFarmTaxWon', () => {
 
   it('86㎡ 이상은 0.2%', () => {
     expect(suggestFarmTaxWon(500_000_000, 86)).toBe(1_000_000);
+  });
+});
+
+describe('farmTaxApplies', () => {
+  it('국평 이하에서는 과세하지 않음', () => {
+    expect(farmTaxApplies('standard', 90)).toBe(false);
+  });
+
+  it('대형·86㎡ 초과면 과세', () => {
+    expect(farmTaxApplies('large', 86)).toBe(true);
+  });
+
+  it('대형·84~85㎡는 면제', () => {
+    expect(farmTaxApplies('large', 85)).toBe(false);
+  });
+
+  it('수동 대형은 면적 없어도 과세', () => {
+    expect(farmTaxApplies('large', undefined, 'large')).toBe(true);
+  });
+});
+
+describe('calcFarmTaxWon / resolveFarmTaxWon', () => {
+  it('낙찰가 × 0.2% (원 반올림)', () => {
+    expect(calcFarmTaxWon(468_518_141)).toBe(937_036);
+    expect(calcFarmTaxWon(500_000_000)).toBe(1_000_000);
+  });
+
+  it('대형·86㎡에서 최종 입찰가 기준', () => {
+    const farm = resolveFarmTaxWon({
+      propertySize: 'large',
+      bidPriceBeforeFarm: 468_518_141,
+      exclusiveAreaM2: 86,
+    });
+    expect(farm).toBe(937_036);
   });
 });

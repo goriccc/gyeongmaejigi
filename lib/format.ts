@@ -32,6 +32,24 @@ export function parseNumberInput(value: string): number {
 }
 
 /**
+ * 원 단위 금액을 "N,NNN,NNN원" 형식으로 포맷합니다.
+ * @param n - 원 단위 금액
+ */
+export function fmtWonExact(n: number): string {
+  return `${formatComma(n)}원`;
+}
+
+/** (비율·범례) 금액원 — 입찰가 계산 UI */
+export function fmtWonExactLead(
+  meta: string,
+  amount: number,
+  options?: { minus?: boolean },
+): string {
+  const sign = options?.minus ? '−' : '';
+  return `(${meta}) ${sign}${fmtWonExact(amount)}`;
+}
+
+/**
  * 숫자를 천단위 콤마 문자열로 포맷합니다.
  */
 export function formatComma(n: number): string {

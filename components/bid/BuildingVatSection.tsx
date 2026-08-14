@@ -14,7 +14,8 @@ import {
   type BuildingVatCalcMode,
   type PropertySizeMode,
 } from '@/lib/calc/buildingVat';
-import { fmtWon, formatComma, parseNumberInput, pct } from '@/lib/format';
+import { WonExactAmt, WonExactLeadDisplay } from '@/components/bid/WonExactDisplay';
+import { formatComma, parseNumberInput, pct } from '@/lib/format';
 import { ko } from '@/messages/ko';
 
 export type BuildingVatSectionState = {
@@ -199,10 +200,14 @@ export function BuildingVatSection({
                 className="building-vat-amount-row"
                 style={{ fontFamily: 'var(--mono)' }}
               >
-                {fmtWon(resolvedBuildingVatWon)}
-                {sellPriceWon > 0
-                  ? ` (${pct(resolvedBuildingVatWon / sellPriceWon)})`
-                  : ''}
+                {sellPriceWon > 0 ? (
+                  <WonExactLeadDisplay
+                    meta={pct(resolvedBuildingVatWon / sellPriceWon)}
+                    amount={resolvedBuildingVatWon}
+                  />
+                ) : (
+                  <WonExactAmt amount={resolvedBuildingVatWon} />
+                )}
                 {vatVerdict ? (
                   <Badge tone={buildingVatVerdictBadgeTone(vatVerdict)}>
                     {buildingVatVerdictLabel(vatVerdict)}
@@ -213,7 +218,7 @@ export function BuildingVatSection({
             <div className="result-row">
               <span>{ko.bidCalc.effectiveSellPrice}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>
-                {fmtWon(effectiveSell)}
+                <WonExactAmt amount={effectiveSell} />
               </span>
             </div>
           </div>
@@ -337,13 +342,8 @@ export function BuildingVatSection({
                   <p className="field-hint">{ko.bidCalc.buildingVatLinks}</p>
                   {previewFromStandards ? (
                     <p className="field-hint">
-                      {ko.bidCalc.buildingVatPreview.replace(
-                        '{amount}',
-                        fmtWon(previewFromStandards.vatAmount),
-                      ).replace(
-                        '{rate}',
-                        pct(previewFromStandards.vatRateOfSell),
-                      )}
+                      산출 부가세 ({pct(previewFromStandards.vatRateOfSell)}){' '}
+                      <WonExactAmt amount={previewFromStandards.vatAmount} />
                     </p>
                   ) : null}
                 </div>

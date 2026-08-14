@@ -7,7 +7,7 @@ import { Section } from '@/components/ui/Section';
 import { newLoanOfferId } from '@/data/defaultLoanOffers';
 import { bidResultFromSaved } from '@/lib/calc/bidFromCase';
 import { rankLoanOffers } from '@/lib/calc/loanCompare';
-import { fmtWon } from '@/lib/format';
+import { fmtWonExact } from '@/lib/format';
 import {
   createInitialLoanDrafts,
   emptyLoanRowDraft,
@@ -60,7 +60,8 @@ export default function LoanComparePage() {
     return rankLoanOffers(
       resolved,
       bid.bidPrice,
-      bid.grossProfit,
+      bid.effectiveSellPrice,
+      bid.financeFreeDetailed,
       saved.months,
     );
   }, [loanRows, bid, saved]);
@@ -141,13 +142,13 @@ export default function LoanComparePage() {
           <div className="result-row">
             <span>입찰가</span>
             <span style={{ fontFamily: 'var(--mono)' }}>
-              {fmtWon(bid.bidPrice)}
+              {fmtWonExact(bid.bidPrice)}
             </span>
           </div>
           <div className="result-row">
             <span>매도가</span>
             <span style={{ fontFamily: 'var(--mono)' }}>
-              {fmtWon(saved.sellPrice)}
+              {fmtWonExact(saved.sellPrice)}
             </span>
           </div>
           <div className="result-row">
@@ -281,7 +282,7 @@ export default function LoanComparePage() {
                         />
                         개월
                       </td>
-                      <td className="loan-profit">{fmtWon(row.netProfit)}</td>
+                      <td className="loan-profit">{fmtWonExact(row.netProfit)}</td>
                       <td>
                         {row.isBest ? (
                           <span className="rank-1">최적</span>

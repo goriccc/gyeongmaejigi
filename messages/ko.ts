@@ -116,7 +116,7 @@ export const ko = {
     buildingStandardLabel: '건물 기준시가 (원, 홈택스)',
     buildingVatLinks:
       '토지: realtyprice.kr · 건물 기준시가: 홈택스 기준시가조회 · 면적: 건축물대장',
-    buildingVatPreview: '산출 부가세 {amount} ({rate})',
+    buildingVatPreview: '산출 부가세 ({rate}) {amount}',
     buildingVatDisclaimer:
       '부가세는 매수자 명의이나 실무상 낙찰자 부담으로 가정합니다. 세후수익·비용 상세에 반영됩니다.',
     buildingVatVerdictRecommended: '추천 물건',
@@ -124,7 +124,33 @@ export const ko = {
     buildingVatVerdictNotRecommended: '비추천 물건',
     buildingVatVerdictHint:
       '매도가 대비 부가세율 — 4% 이하 추천 물건 · 4.5% 이하 보통 물건 · 4.5% 초과 비추천 물건',
+    preTaxProfit: '세전 수익 (blend 후)',
+    preTaxProfitHint:
+      '실질 매도가 − 입찰가 − 상세비용. 목표 마진%와 비율이 다를 수 있습니다.',
+    targetMarginLabel: '목표 마진 (매도가 역산용)',
+    targetMarginHint:
+      '매도가 × 마진%로 1차 역산. 상세비용 blend 반영 후 아래 세전 수익과 비율이 달라질 수 있습니다.',
+    transferTax: '예상 소득세 (이 건 이익 기준)',
+    transferTaxHint:
+      '연간 다른 소득·공제·손실 미반영. 매매사업자 종합소득세율 근사치입니다.',
+    localIncomeTax: '지방소득세',
+    localIncomeTaxHint: '예상 소득세(국세) × 10%',
+    investedCapital: '실투자금',
+    investedCapitalHint: '자기자본(입찰가−대출) + 상세비용',
+    detailedCost: '상세 비용',
+    entryProfileApplied: '제1장 입찰 조건 반영 (주택수·규제·LTV)',
+    entryProfileDefault:
+      '제1장 입찰 조건 미설정 — 무주택·LTV 70% 가정. 설정에서 조건을 입력하세요.',
+    entryProfileLink: '제1장 입찰 조건 설정 →',
+    ltvApplied: '적용 LTV',
+    marginTargetAmt: '역산 목표수익 (매도가×마진%)',
+    actualMarginRate: '실질 세전수익률',
+    pageDisclaimer:
+      '입찰가·세금·수익률은 가정치 기반 계산 결과이며, 법적·세무적 판단이나 신고를 대체하지 않습니다. 취득세·LTV는 제1장 조건, 소득세는 이 건 이익만 과세표준으로 가정합니다. 최종 판단은 본인 몫입니다.',
     farmTaxSuggest: '전용 85㎡ 초과 — 농특세 약 {amount} (낙찰가×0.2%)',
+    farmTaxAutoNote: '대형 물건 — 낙찰가×0.2% 자동 반영',
+    farmTaxExempt: '면제',
+    farmTaxExemptNote: '전용 85㎡ 이하 — 면제',
   },
   bidOutcome: {
     title: '입찰 결과',
