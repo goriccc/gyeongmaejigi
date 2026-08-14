@@ -1,7 +1,16 @@
 'use client';
 
 import { useMemo, type ReactNode } from 'react';
-import type { HouseCount, RegZone } from '@/lib/calc/acquisitionTax';
+import {
+  acquisitionTaxRate,
+  type HouseCount,
+  type RegZone,
+} from '@/lib/calc/acquisitionTax';
+import {
+  applyLtvWithPolicy,
+  CREDIT_MAP,
+  type CreditState,
+} from '@/lib/calc/ltv';
 import {
   lowPriceThreshold,
   PARTIAL_REGIONS,
@@ -20,11 +29,6 @@ const HOUSE_LABELS: Record<HouseCount, string> = {
   3: '3주택 이상',
 };
 
-const REG_ZONE_LABEL: Record<RegZone, string> = {
-  none: '비규제지역',
-  adjusted: '규제지역 (조정·투기과열)',
-};
-
 const MOUTH_PATHS = {
   ok: 'M17 30 Q26 38 35 30',
   warn: 'M18 33 Q26 35 34 33',
@@ -37,6 +41,9 @@ type Props = {
   regZone: RegZone;
   ltvApplied: number;
   taxRate: number;
+  creditState?: CreditState;
+  /** 권역별 LTV·취득세율 산출 기준 낙찰가 */
+  referencePrice?: number;
   lowPriceException?: boolean;
   dispositionPlanned?: boolean;
   firstTimeBuyer?: boolean;
@@ -45,18 +52,141 @@ type Props = {
   summary?: ReactNode;
 };
 
+type ZoneVerdict = 'ok' | 'warn' | 'blocked';
+
+const SUDOGWON_ZONE_LABEL = '수도권(서울, 경기, 인천)';
+
+type ZoneLabel = typeof SUDOGWON_ZONE_LABEL | '지방';
+
+type ZoneVerdictPanel = {
+  zoneLabel: ZoneLabel;
+  investLabel: string;
+  verdict: ZoneVerdict;
+  statusText: string;
+  detailText: string;
+};
+
+function computeZoneVerdict(params: {
+  zoneLabel: ZoneLabel;
+  isSudogwon: boolean;
+  houseCount: HouseCount;
+  regZone: RegZone;
+  lowPriceException: boolean;
+  dispositionPlanned: boolean;
+  firstTimeBuyer: boolean;
+  realDemand: boolean;
+  creditState: CreditState;
+  referencePrice: number;
+  investLabel: string;
+  activeTags: string[];
+}): ZoneVerdictPanel {
+  const credit = CREDIT_MAP[params.creditState];
+  const ltv = applyLtvWithPolicy(
+    params.houseCount,
+    credit.adj,
+    params.isSudogwon,
+    params.isSudogwon ? params.regZone : 'none',
+    params.lowPriceException,
+    params.dispositionPlanned,
+    0.4,
+    params.firstTimeBuyer,
+    params.realDemand,
+  );
+  const taxRate = acquisitionTaxRate(
+    params.referencePrice,
+    params.houseCount,
+    params.isSudogwon ? params.regZone : 'none',
+    params.lowPriceException,
+    params.dispositionPlanned,
+  );
+  const regionStat = regionStatus(
+    params.isSudogwon,
+    params.houseCount,
+    params.lowPriceException,
+    params.dispositionPlanned,
+  );
+  const taxSurcharged = taxRate >= 0.08;
+
+  let verdict: ZoneVerdict;
+  let statusText: string;
+  if (ltv <= 0 || regionStat === 'blocked') {
+    verdict = 'blocked';
+    statusText = '대출 사실상 불가';
+  } else if (regionStat === 'warn' || (taxSurcharged && params.activeTags.length === 0)) {
+    verdict = 'warn';
+    statusText = '대출 가능 · 세금 불리';
+  } else {
+    verdict = 'ok';
+    statusText = '대출 가능';
+  }
+
+  const regZoneLabel = params.isSudogwon
+    ? params.regZone === 'adjusted'
+      ? '규제지역 (조정·투기과열)'
+      : '비규제지역'
+    : '지방';
+
+  const detailText =
+    `${HOUSE_LABELS[params.houseCount]} · ${regZoneLabel}` +
+    ` — 적용 LTV ${(ltv * 100).toFixed(0)}%, 취득세 ${(taxRate * 100).toFixed(1)}%` +
+    (params.activeTags.length ? ` · ${params.activeTags.join('·')} 적용` : '');
+
+  return {
+    zoneLabel: params.zoneLabel,
+    investLabel: params.investLabel,
+    verdict,
+    statusText,
+    detailText,
+  };
+}
+
+function VerdictBanner({ panel }: { panel: ZoneVerdictPanel }) {
+  return (
+    <div className={`verdict-banner vb-${panel.verdict}`}>
+      <svg
+        className="vb-avatar"
+        viewBox="0 0 52 52"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden
+      >
+        <circle cx="26" cy="26" r="24" fill="var(--paper)" />
+        <circle cx="19" cy="23" r="2.4" fill="var(--ink)" />
+        <circle cx="33" cy="23" r="2.4" fill="var(--ink)" />
+        <path
+          d={MOUTH_PATHS[panel.verdict]}
+          stroke="var(--ink)"
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="vb-body">
+        <span className="vb-zone">
+          {panel.zoneLabel} — {panel.investLabel}
+        </span>
+        <span className="vb-status">{panel.statusText}</span>
+        <span className="vb-detail">{panel.detailText}</span>
+      </div>
+    </div>
+  );
+}
+
 export function RegionEligibilityMap({
   houseCount,
-  sudogwon,
+  sudogwon: _sudogwon,
   regZone,
   ltvApplied,
   taxRate,
+  creditState = '보통',
+  referencePrice = 600_000_000,
   lowPriceException = false,
   dispositionPlanned = false,
   firstTimeBuyer = false,
   realDemand = false,
   summary,
 }: Props) {
+  void ltvApplied;
+  void taxRate;
   // 특례 boolean → activeTags를 최상단에서 한 번만 계산 (선언 순서 버그 방지)
   const ftb = houseCount === 0 && firstTimeBuyer;
   const rd = houseCount === 0 && realDemand;
@@ -90,59 +220,67 @@ export function RegionEligibilityMap({
     return { ...tile, status };
   });
 
-  const taxSurcharged = taxRate >= 0.08;
-  let verdict: 'ok' | 'warn' | 'blocked';
-  let statusText: string;
-  if (ltvApplied <= 0) {
-    verdict = 'blocked';
-    statusText = '대출 사실상 불가';
-  } else if (taxSurcharged && activeTags.length === 0) {
-    verdict = 'warn';
-    statusText = '대출 가능 · 세금 불리';
-  } else {
-    verdict = 'ok';
-    statusText = '대출 가능';
-  }
-
-  const detailText =
-    `${HOUSE_LABELS[houseCount]} · ${sudogwon ? '수도권' : '지방'} · ${REG_ZONE_LABEL[regZone]}` +
-    ` 기준 — 적용 LTV ${(ltvApplied * 100).toFixed(0)}%, 취득세 ${(taxRate * 100).toFixed(1)}%` +
-    (activeTags.length ? ` · ${activeTags.join('·')} 적용` : '');
-
   const investLabels = regionInvestTitleLabels(houseCount, disposition, lowPrice);
-  const sectionTitle = `지역별 투자 가능 여부 : 수도권 ${investLabels.sudogwon} | 지방 ${investLabels.regional}`;
+
+  const zonePanels = useMemo(
+    () => [
+      computeZoneVerdict({
+        zoneLabel: SUDOGWON_ZONE_LABEL,
+        isSudogwon: true,
+        houseCount,
+        regZone,
+        lowPriceException: lowPrice,
+        dispositionPlanned: disposition,
+        firstTimeBuyer: ftb,
+        realDemand: rd,
+        creditState,
+        referencePrice,
+        investLabel: investLabels.sudogwon,
+        activeTags,
+      }),
+      computeZoneVerdict({
+        zoneLabel: '지방',
+        isSudogwon: false,
+        houseCount,
+        regZone,
+        lowPriceException: lowPrice,
+        dispositionPlanned: disposition,
+        firstTimeBuyer: ftb,
+        realDemand: rd,
+        creditState,
+        referencePrice,
+        investLabel: investLabels.regional,
+        activeTags,
+      }),
+    ],
+    [
+      houseCount,
+      regZone,
+      lowPrice,
+      disposition,
+      ftb,
+      rd,
+      creditState,
+      referencePrice,
+      investLabels.sudogwon,
+      investLabels.regional,
+      activeTags,
+    ],
+  );
 
   return (
     <div className="section">
-      <h3>{sectionTitle}</h3>
+      <h3>지역별 투자 가능 여부</h3>
       <p className="s-note">
         &quot;투자하기 좋은 곳&quot;이 아니라 &quot;지금 설정으로 대출·세금이
         어떻게 되는지&quot;만 보여드립니다. 실제 투자 지역 선택은 전적으로 본인
         몫입니다.
       </p>
 
-      <div className={`verdict-banner vb-${verdict}`}>
-        <svg
-          className="vb-avatar"
-          viewBox="0 0 52 52"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden
-        >
-          <circle cx="26" cy="26" r="24" fill="var(--paper)" />
-          <circle cx="19" cy="23" r="2.4" fill="var(--ink)" />
-          <circle cx="33" cy="23" r="2.4" fill="var(--ink)" />
-          <path
-            d={MOUTH_PATHS[verdict]}
-            stroke="var(--ink)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
-        <div className="vb-body">
-          <span className="vb-status">{statusText}</span>
-          <span className="vb-detail">{detailText}</span>
-        </div>
+      <div className="verdict-banner-row">
+        {zonePanels.map((panel) => (
+          <VerdictBanner key={panel.zoneLabel} panel={panel} />
+        ))}
       </div>
 
       <div className="rule-panel">

@@ -2455,6 +2455,23 @@ table.loan-table td {
   border-color: var(--brass-deep);
 }
 
+.verdict-banner-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0 20px;
+}
+
+@media (max-width: 720px) {
+  .verdict-banner-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.verdict-banner-row .verdict-banner {
+  margin: 0;
+}
+
 .verdict-banner {
   padding: 18px 20px;
   border-radius: 6px;
@@ -2463,6 +2480,16 @@ table.loan-table td {
   display: flex;
   align-items: flex-start;
   gap: 16px;
+}
+
+.verdict-banner .vb-zone {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--slate);
+  margin-bottom: 4px;
 }
 
 .vb-avatar {

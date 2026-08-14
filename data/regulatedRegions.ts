@@ -94,10 +94,10 @@ export function regionInvestTitleLabels(
     return { sudogwon, regional: '불가' };
   }
   if (houseCount === 2 && !lowPriceException) {
-    return { sudogwon, regional: '가능 (세금 8%)' };
+    return { sudogwon, regional: '가능 (취득세 8%)' };
   }
   if (houseCount >= 3 && !lowPriceException) {
-    return { sudogwon, regional: '가능 (세금 12%)' };
+    return { sudogwon, regional: '가능 (취득세 12%)' };
   }
   return { sudogwon, regional: '가능' };
 }

@@ -152,14 +152,14 @@ describe('regionInvestPossible', () => {
     expect(regionInvestPossible(false, 3, false)).toBe(true);
   });
 
-  it('제목 라벨 — 지방 다주택 세금 표기', () => {
+  it('제목 라벨 — 지방 다주택 취득세 표기', () => {
     expect(regionInvestTitleLabels(2, false, false)).toEqual({
       sudogwon: '불가',
-      regional: '가능 (세금 8%)',
+      regional: '가능 (취득세 8%)',
     });
     expect(regionInvestTitleLabels(3, false, false)).toEqual({
       sudogwon: '불가',
-      regional: '가능 (세금 12%)',
+      regional: '가능 (취득세 12%)',
     });
     expect(regionInvestTitleLabels(2, false, true)).toEqual({
       sudogwon: '불가',

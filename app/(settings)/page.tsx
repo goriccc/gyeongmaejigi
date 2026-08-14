@@ -743,6 +743,8 @@ export default function EntryMatchPage() {
         regZone={regZone}
         ltvApplied={result.ltvApplied}
         taxRate={result.taxRate}
+        creditState={creditState}
+        referencePrice={result.bidCapacity}
         lowPriceException={lowPriceException}
         dispositionPlanned={dispositionEffective}
         firstTimeBuyer={ftb}

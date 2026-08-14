@@ -857,46 +857,6 @@ export default function BidCalcPage() {
           />
         ))}
 
-        <div
-          className="result-row"
-          style={{
-            borderTop: '1px solid var(--ink)',
-            marginTop: 6,
-            paddingTop: 16,
-            fontWeight: 600,
-          }}
-        >
-          <span>필수 항목 합계 (상세)</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>
-            <WonExactAmt amount={costs.requiredTotal} />
-          </span>
-        </div>
-        {costs.conditionalTotal > 0 ? (
-          <div className="result-row">
-            <span>조건부 항목 합계</span>
-            <span style={{ fontFamily: 'var(--mono)' }}>
-              <WonExactAmt amount={costs.conditionalTotal} />
-            </span>
-          </div>
-        ) : null}
-        <div className="result-row">
-          <span>상세 합계 (필수 + 조건부)</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>
-            <WonExactAmt amount={costs.detailedTotal} />
-          </span>
-        </div>
-        <div className="result-row">
-          <span>취득 비용률(개략) 적용 금액</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>
-            <WonExactAmt amount={costs.approxTotal} />
-          </span>
-        </div>
-        <div className="result-row">
-          <span>차이 (개략 − 상세)</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>
-            <WonExactAmt amount={costs.diff} />
-          </span>
-        </div>
       </Section>
 
       {showBidOutcome ? (
