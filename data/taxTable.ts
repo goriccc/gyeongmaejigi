@@ -38,7 +38,7 @@ export const ENTRY_FIXED_COST = 3_000_000;
 /** 모듈 D 가정 LTV */
 export const ASSUMED_LTV = 0.7;
 
-/** V11 엑셀 D30 — 개략(5%)과 상세(E29) 차액의 50%를 2차 입찰가에 가산 */
+/** @deprecated V11 엑셀 개랭·블렌드 — 상세비용 100% 역산으로 대체됨 */
 export const APPROX_DETAIL_BLEND = 0.5;
 
 /** 매매사업자 양도소득 과세표준 구간 (종합소득세 누진세율) */

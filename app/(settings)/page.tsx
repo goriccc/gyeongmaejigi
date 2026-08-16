@@ -174,7 +174,11 @@ export default function EntryMatchPage() {
   const [propType, setPropType] = useState<PropType>(
     initial?.propType ?? '아파트',
   );
-  const [annualIncome, setAnnualIncome] = useState('5,500');
+  const [annualIncome, setAnnualIncome] = useState(
+    initial?.annualIncome
+      ? formatComma(initial.annualIncome / 10000)
+      : '5,500',
+  );
   const [lenderType, setLenderType] = useState<LenderType>(
     initial?.lenderType ?? '2금융권',
   );
@@ -211,6 +215,9 @@ export default function EntryMatchPage() {
     setDispositionPlanned(s.dispositionPlanned ?? false);
     setFirstTimeBuyer(s.firstTimeBuyer ?? false);
     setRealDemand(s.realDemand ?? false);
+    setAnnualIncome(
+      formatComma((s.annualIncome ?? 55_000_000) / 10000),
+    );
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -272,6 +279,7 @@ export default function EntryMatchPage() {
       dispositionPlanned: dispositionEffective,
       firstTimeBuyer: ftb,
       realDemand: rd,
+      annualIncome: parseNumberInput(annualIncome) * 10000,
       result,
     }),
     [
@@ -286,6 +294,7 @@ export default function EntryMatchPage() {
       dispositionEffective,
       ftb,
       rd,
+      annualIncome,
       result,
     ],
   );
@@ -307,6 +316,7 @@ export default function EntryMatchPage() {
           dispositionPlanned: payload.dispositionPlanned,
           firstTimeBuyer: payload.firstTimeBuyer,
           realDemand: payload.realDemand,
+          annualIncome: payload.annualIncome,
         },
         {
           bidCapacity: payload.result.bidCapacity,
@@ -330,6 +340,7 @@ export default function EntryMatchPage() {
           dispositionPlanned: payload.dispositionPlanned,
           firstTimeBuyer: payload.firstTimeBuyer,
           realDemand: payload.realDemand,
+          annualIncome: payload.annualIncome,
         },
         entryMatchResult: {
           bidCapacity: payload.result.bidCapacity,

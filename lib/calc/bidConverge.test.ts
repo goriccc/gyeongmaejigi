@@ -5,26 +5,24 @@ import { calcInvestedCapital, calcNetYield } from './bidCalculator';
 import { calcNetProfitAfterBusinessTax } from './tradingTax';
 
 describe('convergeBid', () => {
-  it('개략 비용률만 쓸 때와 다른 입찰가를 산출한다', () => {
+  it('단순 목표마진 역산보다 상세비용 반영 입찰가가 낮다', () => {
     const flat = calcBid({
       sellPrice: 580_000_000,
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
     });
     const detailed = convergeBid({
       sellPrice: 580_000_000,
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 0,
       buildingVat: 0,
     });
-    expect(detailed.bidPrice).not.toBeCloseTo(flat.bidPrice, -3);
+    expect(detailed.bidPrice).toBeLessThan(flat.bidPrice);
     expect(detailed.costAmt).toBeGreaterThan(0);
-    expect(detailed.costAmt).not.toBe(detailed.costs.requiredTotal);
+    expect(detailed.costAmt).toBeGreaterThan(detailed.costs.detailedTotal - 1);
   });
 
   it('조건부 비용만큼 입찰가를 낮춘다', () => {
@@ -33,7 +31,6 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 0,
       buildingVat: 0,
     });
@@ -42,15 +39,14 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 5_000_000,
       buildingVat: 0,
       conditionalWon: { repair: 5_000_000 },
     });
     expect(withExtra.bidPrice).toBeLessThan(base.bidPrice);
     const drop = base.bidPrice - withExtra.bidPrice;
-    expect(drop).toBeGreaterThan(2_000_000);
-    expect(drop).toBeLessThan(3_000_000);
+    expect(drop).toBeGreaterThan(4_000_000);
+    expect(drop).toBeLessThan(6_000_000);
   });
 
   it('대형이면 농특세 필수 항목을 포함한다', () => {
@@ -59,7 +55,6 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 300_000,
       buildingVat: 0,
       propertySize: 'large',
@@ -77,7 +72,6 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 300_000,
       buildingVat: 0,
       propertySize: 'large',
@@ -94,7 +88,6 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 300_000,
       buildingVat: 0,
       propertySize: 'standard',
@@ -103,13 +96,12 @@ describe('convergeBid', () => {
     expect(result.costs.items.some((i) => i.key === 'farm')).toBe(false);
   });
 
-  it('V11 엑셀 E31(580M·16%·5%)과 근사 일치', () => {
+  it('상세비용 100% 역산 (580M·16%·대형·86㎡)', () => {
     const result = convergeBid({
       sellPrice: 580_000_000,
       months: 6,
       loanRate: 0.05,
       margin: 0.16,
-      costRate: 0.05,
       conditionalExtra: 300_000,
       buildingVat: 0,
       propertySize: 'large',
@@ -117,7 +109,7 @@ describe('convergeBid', () => {
       conditionalWon: { miscOther: 300_000 },
       housingBond: { customerBurden: 882_940, note: 'excel' },
     });
-    expect(result.bidPrice).toBeCloseTo(462_714_558, -3);
+    expect(result.bidPrice).toBeCloseTo(467_229_116, -3);
   });
 
   it('건물분 부가세는 입찰가가 아닌 세전·세후수익만 낮춘다', () => {
@@ -126,7 +118,6 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.048,
       margin: 0.1,
-      costRate: 0.05,
       conditionalExtra: 0,
       buildingVat: 0,
     });
@@ -135,7 +126,6 @@ describe('convergeBid', () => {
       months: 6,
       loanRate: 0.048,
       margin: 0.1,
-      costRate: 0.05,
       conditionalExtra: 0,
       buildingVat: 17_524_910,
     });
@@ -154,13 +144,12 @@ describe('convergeBid', () => {
     );
   });
 
-  it('V11 상세비용(E31 입찰가 기준)과 세전수익 검산', () => {
+  it('상세비용 합계와 세전수익 검산', () => {
     const result = convergeBid({
       sellPrice: 580_000_000,
       months: 6,
       loanRate: 0.05,
       margin: 0.16,
-      costRate: 0.05,
       conditionalExtra: 300_000,
       buildingVat: 0,
       propertySize: 'large',
@@ -168,7 +157,7 @@ describe('convergeBid', () => {
       conditionalWon: { miscOther: 300_000 },
       housingBond: { customerBurden: 882_940, note: 'excel' },
     });
-    expect(result.profitDetailedTotal).toBeCloseTo(19_822_393, -3);
+    expect(result.profitDetailedTotal).toBeCloseTo(19_970_884, -3);
     expect(result.invested).toBeCloseTo(
       calcInvestedCapital(
         result.bidPrice,
@@ -181,7 +170,7 @@ describe('convergeBid', () => {
       calcNetYield(result.netProfit, result.invested),
       1,
     );
-    expect(result.grossProfit).toBeCloseTo(97_463_049, -3);
+    expect(result.grossProfit).toBeCloseTo(92_800_000, -3);
     expect(result.netProfit).toBeCloseTo(
       result.grossProfit - result.transferTax - result.localIncomeTax,
       0,
@@ -191,13 +180,12 @@ describe('convergeBid', () => {
     ).toBeCloseTo(result.effectiveSellPrice, 0);
   });
 
-  it('실질매도가 − E31 − E31상세비용 (부가세 2,700만)', () => {
+  it('실질매도가 − 입찰가 − 상세비용 (부가세 2,700만)', () => {
     const result = convergeBid({
       sellPrice: 580_000_000,
       months: 6,
       loanRate: 0.05,
       margin: 0.16,
-      costRate: 0.05,
       conditionalExtra: 300_000,
       buildingVat: 27_000_000,
       propertySize: 'large',
@@ -206,8 +194,8 @@ describe('convergeBid', () => {
       housingBond: { customerBurden: 882_940, note: 'excel' },
     });
     expect(result.effectiveSellPrice).toBe(553_000_000);
-    expect(result.profitDetailedTotal).toBeCloseTo(19_822_393, -3);
-    expect(result.grossProfit).toBeCloseTo(70_463_049, -3);
+    expect(result.profitDetailedTotal).toBeCloseTo(19_970_884, -3);
+    expect(result.grossProfit).toBeCloseTo(65_800_000, -3);
     expect(result.netProfit).toBeCloseTo(
       result.grossProfit - result.transferTax - result.localIncomeTax,
       0,

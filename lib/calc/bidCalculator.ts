@@ -41,8 +41,6 @@ export type BidCalcInput = {
   loanRate: number;
   /** 목표 마진(비율) */
   margin: number;
-  /** 취득 비용률(비율) */
-  costRate: number;
   /** 조건부 추가비용 합계(원) — 입찰가에서 선차감 */
   conditionalExtra?: number;
   /** 대형 건물분 부가세(원) — 실질 매도가·상세비용에 반영 */
@@ -101,19 +99,14 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     months,
     loanRate,
     margin,
-    costRate,
     conditionalExtra = 0,
     buildingVat = 0,
     entryInputs = null,
   } = input;
   const policy = resolveBidPolicy(entryInputs, entryInputs == null);
   const taxCtx = acquisitionContextFromPolicy(policy);
-  const costAmt = sellPrice * costRate;
   const marginAmt = sellPrice * margin;
-  const bidPrice = Math.max(
-    0,
-    sellPrice - costAmt - marginAmt - conditionalExtra,
-  );
+  const bidPrice = Math.max(0, sellPrice - marginAmt - conditionalExtra);
   const loanPrincipal = loanPrincipalAtBid(bidPrice, policy);
   const interestCost = loanPrincipal * loanRate * (months / 12);
   const vatAmt = Math.max(0, buildingVat);
@@ -125,7 +118,6 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     loanPrincipal,
     months,
     loanRate,
-    costRate,
     undefined,
     undefined,
     {},
@@ -158,7 +150,7 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     loanPrincipal,
     interestCost,
     invested,
-    costAmt,
+    costAmt: Math.max(0, sellPrice - marginAmt - bidPrice),
     conditionalExtra,
     buildingVat: vatAmt,
     effectiveSellPrice: effectiveSell,
@@ -175,8 +167,43 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
  * 목표 마진 슬라이더 라벨 텍스트.
  * @param marginPct - 마진 % (3~20)
  */
+export type MarginTier = 'low' | 'mid' | 'high';
+
+const TIER_LABELS: Record<MarginTier, string> = {
+  low: '저마진',
+  mid: '중마진',
+  high: '고마진',
+};
+
+export function tierLabelText(tier: MarginTier): string {
+  return TIER_LABELS[tier];
+}
+
+export function marginTier(marginPct: number): MarginTier {
+  if (marginPct <= 8) return 'low';
+  if (marginPct <= 12) return 'mid';
+  return 'high';
+}
+
+export function marginTierClass(marginPct: number): string {
+  return `margin-tier-${marginTier(marginPct)}`;
+}
+
 export function marginLabelText(marginPct: number): string {
-  if (marginPct <= 5) return '저마진';
-  if (marginPct <= 10) return '중마진';
-  return '고마진';
+  return tierLabelText(marginTier(marginPct));
+}
+
+/** 실투자금 대비 수익률(%) 구간 — 저마진 ~12 · 중마진 ~21 · 고마진 21 초과 */
+export function yieldTier(yieldPct: number): MarginTier {
+  if (yieldPct <= 12) return 'low';
+  if (yieldPct <= 21) return 'mid';
+  return 'high';
+}
+
+export function yieldTierClass(yieldPct: number): string {
+  return `margin-tier-${yieldTier(yieldPct)}`;
+}
+
+export function yieldLabelText(yieldPct: number): string {
+  return tierLabelText(yieldTier(yieldPct));
 }

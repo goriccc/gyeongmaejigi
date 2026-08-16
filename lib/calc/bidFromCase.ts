@@ -66,7 +66,6 @@ export function bidResultFromSaved(
     months: saved.months,
     loanRate: saved.loanRate / 100,
     margin: saved.margin / 100,
-    costRate: saved.costRate,
     conditionalExtra,
     buildingVat,
     propertySize,

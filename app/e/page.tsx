@@ -15,6 +15,8 @@ import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
 import { ko } from '@/messages/ko';
 import { normalizeCaseTrack } from '@/lib/caseUtils';
 import type {
+  ContentProofCompare,
+  ContentProofModelResult,
   EvictionCoachCompare,
   EvictionConversationLog,
   EvictionModelResult,
@@ -24,22 +26,6 @@ type EvictionStreamEvent =
   | { type: 'result'; result: EvictionModelResult }
   | { type: 'done'; analyzedAt: string }
   | { type: 'error'; error: string };
-
-type ContentProofModelResult = {
-  model: 'claude-sonnet-5';
-  label: string;
-  title: string;
-  body: string;
-  caution: string;
-  latencyMs?: number;
-  error?: string;
-};
-
-type ContentProofCompare = {
-  claude?: ContentProofModelResult;
-  result?: ContentProofModelResult;
-  analyzedAt: string;
-};
 
 function ContentProofBlock({
   result,
@@ -166,7 +152,7 @@ export default function EvictionCoachPage() {
     setNewPaste('');
     setCompare(activeCase?.evictionCoach ?? null);
     setError('');
-    setCertCompare(null);
+    setCertCompare(activeCase?.contentProof ?? null);
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const persistLog = useCallback(
@@ -305,11 +291,15 @@ export default function EvictionCoachPage() {
       if (!result) {
         throw new Error('내용증명 초안 응답이 비어 있습니다.');
       }
-      setCertCompare({
+      const next: ContentProofCompare = {
         result: { ...result, label: 'AI 내용증명' },
         claude: { ...result, label: 'AI 내용증명' },
         analyzedAt: data.analyzedAt,
-      });
+      };
+      setCertCompare(next);
+      if (activeCase) {
+        updateCase(activeCase.id, { contentProof: next });
+      }
     } catch (err) {
       setCertError(
         err instanceof Error

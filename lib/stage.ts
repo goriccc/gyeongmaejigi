@@ -95,7 +95,7 @@ export function stageBadgeLabel(caseFile: CaseFile): string {
   const track = normalizeCaseTrack(caseFile);
 
   if (caseFile.stage === 'done') {
-    return track === 'eviction' ? '명도 완료' : '명도 완료';
+    return track === 'eviction' ? '명도 완료' : '입찰 · 명도 완료';
   }
 
   if (track === 'eviction') {

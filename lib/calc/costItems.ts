@@ -79,7 +79,6 @@ export type CostItemsResult = {
  * @param loanPrincipal - 대출원금(원)
  * @param months - 보유개월
  * @param loanRate - 대출이자율(비율)
- * @param costRate - 개략 취득비용률
  * @param prepayRate - 중도상환수수료율 (기본 가정값)
  * @param prepayPeriod - 적용기간(개월)
  * @param conditional - 조건부 비용 (원)
@@ -93,7 +92,6 @@ export function calcCostItems(
   loanPrincipal: number,
   months: number,
   loanRate: number,
-  costRate: number,
   prepayRate = DEFAULT_PREPAY.rate,
   prepayPeriod = DEFAULT_PREPAY.periodMonths,
   conditional: ConditionalCostsWon = {},
@@ -249,7 +247,7 @@ export function calcCostItems(
     {
       key: 'evict',
       name: '명도비',
-      note: '평균 250~300만원 (32평 기준) — 만원 단위 입력',
+      note: '평균 250~300만원 (32평 기준) — 원 단위 입력',
       amount: conditional.evict ?? null,
       rate: null,
       kind: 'conditional',
@@ -287,15 +285,14 @@ export function calcCostItems(
     .filter((i) => i.kind === 'conditional' && i.amount != null)
     .reduce((s, i) => s + (i.amount ?? 0), 0);
   const detailedTotal = requiredTotal + conditionalTotal;
-  const approxTotal = sell * costRate;
 
   return {
     items,
     requiredTotal,
     conditionalTotal,
     detailedTotal,
-    approxTotal,
-    diff: approxTotal - detailedTotal,
+    approxTotal: detailedTotal,
+    diff: 0,
   };
 }
 

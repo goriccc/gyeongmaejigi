@@ -1,4 +1,3 @@
-import { APPROX_DETAIL_BLEND } from '@/data/taxTable';
 import type { EntryMatchInputs } from '@/types/case';
 import type { CalcBrokerFeeOptions } from './brokerFee';
 import { effectiveSellPrice } from './buildingVat';
@@ -35,7 +34,6 @@ export type ConvergeBidParams = {
   months: number;
   loanRate: number;
   margin: number;
-  costRate: number;
   conditionalExtra: number;
   buildingVat: number;
   propertySize?: PropertySizeClass;
@@ -90,22 +88,12 @@ function conditionalWithAutoFarm(
   return { ...conditionalWon, farm: calcFarmTaxWon(bidPrice) };
 }
 
-/**
- * V11 엑셀 E31 — 2차 취득 산정 입찰가.
- * E6 = 매도가 − 개략비용 − 목표수익, E30 = (개략 − 상세)×50%, E31 = E6 + E30 (E30>0).
- */
-export function bidFromExcelBlend(
+/** 상세비용 100% 역산 — 매도가 − 상세합 − 목표수익 */
+export function bidFromDetailedCosts(
   sellPrice: number,
   marginAmt: number,
-  costRate: number,
   detailedTotal: number,
 ): number {
-  const approxTotal = sellPrice * costRate;
-  const firstPassBid = sellPrice - approxTotal - marginAmt;
-  const blendAdd = Math.max(0, (approxTotal - detailedTotal) * APPROX_DETAIL_BLEND);
-  if (blendAdd > 0) {
-    return Math.max(0, firstPassBid + blendAdd);
-  }
   return Math.max(0, sellPrice - detailedTotal - marginAmt);
 }
 
@@ -118,18 +106,16 @@ export function effectiveCostInBid(
   return Math.max(0, sellPrice - marginAmt - bidPrice);
 }
 
-/** V11 F33 — 상세(E29) 산출용 앵커 입찰가 (상세 100% 역산) */
-function convergeAnchorBid(
+function convergeBidPrice(
   params: ConvergeBidParams,
   marginAmt: number,
   vatAmt: number,
   policy: ResolvedBidPolicy,
-): { anchorBid: number; detailedForBlend: number } {
+): number {
   const {
     sellPrice,
     months,
     loanRate,
-    costRate,
     conditionalExtra,
     propertySize = 'standard',
     exclusiveAreaM2,
@@ -144,7 +130,7 @@ function convergeAnchorBid(
 
   let bidPrice = Math.max(
     0,
-    sellPrice * (1 - costRate - params.margin) - conditionalExtra,
+    sellPrice * (1 - params.margin) - conditionalExtra,
   );
   let costs!: CostItemsResult;
 
@@ -162,7 +148,6 @@ function convergeAnchorBid(
       loanPrincipal,
       months,
       loanRate,
-      costRate,
       undefined,
       undefined,
       conditionalWithAutoFarm(
@@ -179,10 +164,8 @@ function convergeAnchorBid(
       taxCtx,
     );
     const requiredForBid = requiredCostForBid(costs.requiredTotal, vatAmt);
-    const nextBid = Math.max(
-      0,
-      sellPrice - requiredForBid - marginAmt - conditionalExtra,
-    );
+    const detailedTotal = requiredForBid + costs.conditionalTotal;
+    const nextBid = bidFromDetailedCosts(sellPrice, marginAmt, detailedTotal);
     if (Math.abs(nextBid - bidPrice) < 1) {
       bidPrice = nextBid;
       break;
@@ -190,15 +173,11 @@ function convergeAnchorBid(
     bidPrice = nextBid;
   }
 
-  const requiredForBid = requiredCostForBid(costs.requiredTotal, vatAmt);
-  return {
-    anchorBid: bidPrice,
-    detailedForBlend: requiredForBid + costs.conditionalTotal,
-  };
+  return bidPrice;
 }
 
 /**
- * 필수 비용 상세 합계를 입찰가 역산에 반영합니다.
+ * 필수·조건부 상세 비용 합계를 입찰가 역산에 반영합니다.
  * 이자·취득세 등이 낙찰가에 연동되므로 고정점까지 반복합니다.
  */
 export function convergeBid(params: ConvergeBidParams): ConvergedBid {
@@ -207,7 +186,6 @@ export function convergeBid(params: ConvergeBidParams): ConvergedBid {
     months,
     loanRate,
     margin,
-    costRate,
     conditionalExtra,
     buildingVat,
     propertySize = 'standard',
@@ -226,18 +204,7 @@ export function convergeBid(params: ConvergeBidParams): ConvergedBid {
   const marginAmt = sellPrice * margin;
   const vatAmt = Math.max(0, buildingVat);
 
-  const { detailedForBlend } = convergeAnchorBid(
-    params,
-    marginAmt,
-    vatAmt,
-    policy,
-  );
-  const bidPrice = bidFromExcelBlend(
-    sellPrice,
-    marginAmt,
-    costRate,
-    detailedForBlend,
-  );
+  const bidPrice = convergeBidPrice(params, marginAmt, vatAmt, policy);
 
   const { loanPrincipal, interestCost } = interestAtBid(
     bidPrice,
@@ -252,7 +219,6 @@ export function convergeBid(params: ConvergeBidParams): ConvergedBid {
     loanPrincipal,
     months,
     loanRate,
-    costRate,
     undefined,
     undefined,
     conditionalWithAutoFarm(

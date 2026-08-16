@@ -40,6 +40,7 @@ export const ko = {
     addCase: '+ 입찰 사건 추가',
     addEviction: '+ 명도만 시작',
     deleteCase: '삭제',
+    deleteLoanRow: '삭제',
     selectCase: '권리분석',
     active: '작업 중',
     archivedToggle: (n: number) => `종료된 사건 ${n}건`,
@@ -142,7 +143,7 @@ export const ko = {
     entryProfileApplied: '제1장 입찰 조건 반영 (주택수·규제·LTV)',
     entryProfileDefault:
       '제1장 입찰 조건 미설정 — 무주택·LTV 70% 가정. 설정에서 조건을 입력하세요.',
-    entryProfileLink: '제1장 입찰 조건 설정 →',
+    entryProfileLink: '투자 상담에서 입찰 조건 설정 →',
     ltvApplied: '적용 LTV',
     marginTargetAmt: '역산 목표수익 (매도가×마진%)',
     actualMarginRate: '실질 세전수익률',
@@ -167,6 +168,13 @@ export const ko = {
       '입찰 조건은 기기에 저장됩니다. 활성 입찰 사건에도 동일하게 적용됩니다.',
     noCaseHint:
       '활성 사건 없음 — 입찰 조건은 기기에 저장되며, 사건 선택 시 물건에도 반영됩니다.',
+  },
+  fieldChecklist: {
+    title: '현장 체크리스트',
+    empty: '제2장 권리분석을 완료하면 물건별 체크 항목이 생성됩니다.',
+    progress: (done: number, total: number) =>
+      `체크 ${done}/${total} — 현장에서 확인한 항목을 표시하세요.`,
+    next: '체크 완료 — 입찰가 계산으로 →',
   },
   evictionBanner: {
     noCase: '사건을 만들면 분석 결과가 저장됩니다. 지금도 대화 분석은 가능합니다.',

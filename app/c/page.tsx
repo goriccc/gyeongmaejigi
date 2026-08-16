@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { FieldChecklistSection } from '@/components/field/FieldChecklistSection';
 import { FieldRouteSection } from '@/components/field/FieldRouteSection';
 import { useCases } from '@/lib/hooks/useCases';
 
@@ -30,6 +31,7 @@ export default function FieldPrepPage() {
         </div>
       ) : null}
 
+      <FieldChecklistSection />
       <FieldRouteSection />
     </>
   );

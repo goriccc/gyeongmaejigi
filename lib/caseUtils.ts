@@ -173,17 +173,18 @@ export function getNextAction(c: CaseFile): CaseNextAction {
   if (!c.rightsAnalysis?.analyzedAt && c.riskFlags.length === 0) {
     return { href: '/b', label: '권리분석' };
   }
-  if (c.stage === 'B' || (c.riskFlags.length > 0 && c.stage === 'C')) {
-    const unchecked = c.checklist.filter((i) => !i.checked).length;
-    if (c.stage === 'C' && unchecked > 0) {
-      return { href: '/c', label: `임장 체크 ${c.checklist.length - unchecked}/${c.checklist.length}` };
-    }
-    if (c.stage === 'B') {
-      return { href: '/c', label: '임장 준비' };
-    }
-  }
-  if (c.stage === 'C' && !c.bidCalcInputs) {
+  if (c.stage === 'B') {
     return { href: '/c', label: '임장 준비' };
+  }
+  if (c.stage === 'C') {
+    const total = c.checklist.length;
+    const done = c.checklist.filter((i) => i.checked).length;
+    if (total > 0 && done < total) {
+      return { href: '/c', label: `임장 체크 ${done}/${total}` };
+    }
+    if (!c.bidCalcInputs) {
+      return { href: '/d', label: '입찰가 계산' };
+    }
   }
   if (c.stage === 'D' || c.bidCalcInputs) {
     if (c.bidOutcome === 'pending' || !c.bidOutcome) {

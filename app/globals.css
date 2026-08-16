@@ -12,6 +12,8 @@
   --seal-soft: #f0e3e0;
   --amber: #c46b1a;
   --amber-soft: #f7ebdd;
+  --azure: #2a4570;
+  --azure-soft: #e8edf4;
   --slate: #6e6858;
   --line: rgba(20, 22, 31, 0.14);
   --line-soft: rgba(20, 22, 31, 0.08);
@@ -1886,6 +1888,25 @@ textarea:focus {
   font-family: var(--mono);
   font-weight: 600;
   color: var(--seal);
+}
+
+.margin-tier-low {
+  color: var(--seal);
+}
+
+.margin-tier-mid {
+  color: var(--forest);
+}
+
+.margin-tier-high {
+  color: var(--ink);
+}
+
+.bid-key-metric {
+  font-family: var(--mono);
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 input[type='range'] {

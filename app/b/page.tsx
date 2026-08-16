@@ -75,6 +75,7 @@ export default function RightsAnalysisPage() {
   }
 
   async function analyze() {
+    if (!activeCase) return;
     setLoading(true);
     setError('');
     persistJudgment(judgment);
@@ -201,7 +202,7 @@ export default function RightsAnalysisPage() {
           type="button"
           className="btn btn-primary"
           onClick={() => void analyze()}
-          disabled={loading}
+          disabled={loading || !activeCase}
         >
           {loading ? 'AI 분석 중…' : 'AI 권리분석 시작'}
         </button>

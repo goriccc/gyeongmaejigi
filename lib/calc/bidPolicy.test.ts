@@ -49,7 +49,6 @@ describe('convergeBid + bidPolicy', () => {
     months: 6,
     loanRate: 0.05,
     margin: 0.16,
-    costRate: 0.05,
     conditionalExtra: 300_000,
     buildingVat: 0,
     propertySize: 'large' as const,

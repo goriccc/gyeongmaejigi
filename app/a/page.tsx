@@ -80,7 +80,7 @@ function TaskCard({
             className="btn btn-primary btn-sm"
             onClick={() => onOpen(c.id, next.href)}
           >
-            {ko.dashboard.selectCase}
+            {next.label}
           </button>
           <button
             type="button"
@@ -105,6 +105,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [showBiddingForm, setShowBiddingForm] = useState(false);
   const [showEvictionForm, setShowEvictionForm] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [viewCase, setViewCase] = useState<CaseFile | null>(null);
 
   const groups = useMemo(() => groupCases(cases), [cases]);
@@ -218,6 +219,30 @@ export default function DashboardPage() {
                 onRemove={removeCase}
               />
             ))}
+          </>
+        ) : null}
+        {groups.archived.length > 0 ? (
+          <>
+            <button
+              type="button"
+              className="btn-text task-group-label task-archived-toggle"
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              {ko.dashboard.archivedToggle(groups.archived.length)}
+              {showArchived ? ' ▲' : ' ▼'}
+            </button>
+            {showArchived
+              ? groups.archived.map((c) => (
+                  <TaskCard
+                    key={c.id}
+                    c={c}
+                    activeId={activeId}
+                    onOpen={openCase}
+                    onView={setViewCase}
+                    onRemove={removeCase}
+                  />
+                ))
+              : null}
           </>
         ) : null}
       </section>

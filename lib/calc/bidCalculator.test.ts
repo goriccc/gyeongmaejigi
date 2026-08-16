@@ -4,8 +4,13 @@ import {
   calcInvestedCapital,
   calcNetYield,
   marginLabelText,
+  marginTier,
+  marginTierClass,
   resolveBidLoanRate,
   resolveBidMargin,
+  yieldLabelText,
+  yieldTier,
+  yieldTierClass,
 } from './bidCalculator';
 import { calcCostItems, brokerFeeRate } from './costItems';
 import { rankLoanOffers } from './loanCompare';
@@ -21,11 +26,8 @@ describe('calcBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
     });
-    // 580M - 5% - 5.5% = 580M * 0.895 = 519.1M ... wait
-    // bid = sell - sell*cost - sell*margin = sell*(1-0.05-0.055) = 580M*0.895
-    expect(result.bidPrice).toBeCloseTo(580_000_000 * 0.895, -2);
+    expect(result.bidPrice).toBeCloseTo(580_000_000 * (1 - 0.055), -2);
     expect(result.grossProfit).toBeGreaterThan(0);
     expect(result.transferTax).toBeCloseTo(
       calcTradingBusinessTransferTax(result.grossProfit),
@@ -56,14 +58,12 @@ describe('calcBid', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
     });
     const withExtra = calcBid({
       sellPrice: 580_000_000,
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
       conditionalExtra: 5_000_000,
     });
     expect(withExtra.bidPrice).toBe(base.bidPrice - 5_000_000);
@@ -76,14 +76,12 @@ describe('calcBid', () => {
       months: 6,
       loanRate: 0.048,
       margin: 0.1,
-      costRate: 0.05,
     });
     const withVat = calcBid({
       sellPrice: 511_000_000,
       months: 6,
       loanRate: 0.048,
       margin: 0.1,
-      costRate: 0.05,
       buildingVat: 17_524_910,
     });
     expect(withVat.bidPrice).toBe(base.bidPrice);
@@ -105,11 +103,35 @@ describe('calcBid', () => {
 
 describe('marginLabelText', () => {
   it('구간 라벨', () => {
-    expect(marginLabelText(3)).toBe('저마진');
     expect(marginLabelText(5)).toBe('저마진');
-    expect(marginLabelText(5.5)).toBe('중마진');
-    expect(marginLabelText(10)).toBe('중마진');
-    expect(marginLabelText(10.5)).toBe('고마진');
+    expect(marginLabelText(8)).toBe('저마진');
+    expect(marginLabelText(8.5)).toBe('중마진');
+    expect(marginLabelText(12)).toBe('중마진');
+    expect(marginLabelText(12.5)).toBe('고마진');
+  });
+});
+
+describe('marginTier', () => {
+  it('구간·CSS 클래스', () => {
+    expect(marginTier(8)).toBe('low');
+    expect(marginTier(8.5)).toBe('mid');
+    expect(marginTier(12.5)).toBe('high');
+    expect(marginTierClass(10)).toBe('margin-tier-mid');
+  });
+});
+
+describe('yieldTier', () => {
+  it('실투자금 대비 수익률 구간', () => {
+    expect(yieldTier(12)).toBe('low');
+    expect(yieldTier(12.5)).toBe('mid');
+    expect(yieldTier(20)).toBe('mid');
+    expect(yieldTier(21)).toBe('mid');
+    expect(yieldTier(21.5)).toBe('high');
+    expect(yieldTierClass(15)).toBe('margin-tier-mid');
+    expect(yieldLabelText(12)).toBe('저마진');
+    expect(yieldLabelText(15)).toBe('중마진');
+    expect(yieldLabelText(21)).toBe('중마진');
+    expect(yieldLabelText(22)).toBe('고마진');
   });
 });
 
@@ -135,7 +157,6 @@ describe('brokerFeeRate / calcCostItems', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
     });
     const costs = calcCostItems(
       bid.bidPrice,
@@ -144,7 +165,6 @@ describe('brokerFeeRate / calcCostItems', () => {
       bid.loanPrincipal,
       6,
       0.045,
-      0.05,
     );
     expect(costs.items).toHaveLength(13);
     expect(costs.requiredTotal).toBeGreaterThan(10_000_000);
@@ -158,7 +178,6 @@ describe('brokerFeeRate / calcCostItems', () => {
       240_000_000,
       6,
       0.048,
-      0.05,
       undefined,
       undefined,
       {},
@@ -178,7 +197,6 @@ describe('rankLoanOffers', () => {
       months: 6,
       loanRate: 0.045,
       margin: 0.055,
-      costRate: 0.05,
     });
     const ranked = rankLoanOffers(
       [

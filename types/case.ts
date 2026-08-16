@@ -74,6 +74,22 @@ export type EvictionCoachCompare = {
   analyzedAt: string;
 };
 
+export type ContentProofModelResult = {
+  model: 'claude-sonnet-5';
+  label: string;
+  title: string;
+  body: string;
+  caution: string;
+  latencyMs?: number;
+  error?: string;
+};
+
+export type ContentProofCompare = {
+  claude?: ContentProofModelResult;
+  result?: ContentProofModelResult;
+  analyzedAt: string;
+};
+
 /** 명도 대화 누적 기록 (사건·기기 localStorage) */
 export type EvictionConversationEntry = {
   id: string;
@@ -113,6 +129,8 @@ export type EntryMatchInputs = {
   firstTimeBuyer?: boolean;
   /** 서민·실수요자 요건 (무주택일 때만) */
   realDemand?: boolean;
+  /** 연소득 (원) — DSR 산출용 */
+  annualIncome?: number;
 };
 
 export type EntryMatchResult = {
@@ -163,7 +181,8 @@ export type CaseFile = {
     months: number;
     loanRate: number;
     margin: number;
-    costRate: number;
+    /** @deprecated 개랭 비용률 — 저장 호환용, 역산에 미사용 */
+    costRate?: number;
     /** 미납관리비 (만원) */
     unpaidMgmtFeeMan?: number;
     /** 명도비 (만원) */
@@ -199,6 +218,8 @@ export type CaseFile = {
     resistLevel: 'low' | 'mid' | 'high';
     nextActions: string[];
   };
+  /** 내용증명 초안 (LLM) */
+  contentProof?: ContentProofCompare;
 };
 
 export type CreateCaseInput = {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { newLoanOfferId } from '@/data/defaultLoanOffers';
+import { WonExactAmt } from '@/components/bid/WonExactDisplay';
 import { bidResultFromSaved } from '@/lib/calc/bidFromCase';
 import { rankLoanOffers } from '@/lib/calc/loanCompare';
 import { fmtWonExact } from '@/lib/format';
@@ -76,10 +77,13 @@ export default function LoanComparePage() {
     500,
     (payload) => {
       if (!activeCase) return;
-      updateCase(activeCase.id, {
+      const patch: Parameters<typeof updateCase>[1] = {
         loanOffers: loanOffersForSave(payload),
-        stage: afterLoanCompareSaved(activeCase.stage),
-      });
+      };
+      if (activeCase.bidOutcome === 'won') {
+        patch.stage = afterLoanCompareSaved(activeCase.stage);
+      }
+      updateCase(activeCase.id, patch);
     },
     Boolean(activeCase),
     activeCase?.id,
@@ -141,15 +145,11 @@ export default function LoanComparePage() {
         >
           <div className="result-row">
             <span>입찰가</span>
-            <span style={{ fontFamily: 'var(--mono)' }}>
-              {fmtWonExact(bid.bidPrice)}
-            </span>
+            <WonExactAmt amount={bid.bidPrice} />
           </div>
           <div className="result-row">
             <span>매도가</span>
-            <span style={{ fontFamily: 'var(--mono)' }}>
-              {fmtWonExact(saved.sellPrice)}
-            </span>
+            <WonExactAmt amount={saved.sellPrice} />
           </div>
           <div className="result-row">
             <span>보유기간</span>
@@ -163,7 +163,7 @@ export default function LoanComparePage() {
 
       <Section
         title="대출상품 비교"
-        note='회색 예시는 참고용 placeholder입니다. 입력을 시작하면 사라지고, 순위·수익은 입력값(미입력 칸은 예시값) 기준으로 계산됩니다.'
+        note='회색 예시는 참고용 입니다. 입력을 시작하면 사라지고, 순위·수익은 입력값(미입력 칸은 예시값) 기준으로 계산됩니다.'
       >
         {!saved ? (
           <p className="field-hint">입찰가 계산이 완료되면 비교표가 활성화됩니다.</p>
@@ -303,7 +303,7 @@ export default function LoanComparePage() {
                               : '삭제'
                           }
                         >
-                          {ko.dashboard.deleteCase}
+                          {ko.dashboard.deleteLoanRow}
                         </button>
                       </td>
                     </tr>

@@ -8,7 +8,7 @@ import { ResultPanel } from '@/components/ui/ResultPanel';
 import { RiskRow } from '@/components/ui/RiskRow';
 import { Badge } from '@/components/ui/Badge';
 import { Disclaimer } from '@/components/ui/Disclaimer';
-import { marginLabelText, resolveBidLoanRate, resolveBidMargin } from '@/lib/calc/bidCalculator';
+import { resolveBidLoanRate, resolveBidMargin, yieldLabelText, yieldTierClass } from '@/lib/calc/bidCalculator';
 import { convergeBid } from '@/lib/calc/bidConverge';
 import {
   BuildingVatSection,
@@ -194,9 +194,6 @@ export default function BidCalcPage() {
     resolveBidLoanRate(saved?.loanRate),
   );
   const [margin, setMargin] = useState(() => resolveBidMargin(saved?.margin));
-  const [costRate, setCostRate] = useState(
-    saved?.costRate != null ? `${(saved.costRate * 100).toFixed(1)}%` : '5.0%',
-  );
   const [conditionalWonFields, setConditionalWonFields] = useState<
     Record<ConditionalCostKey, string>
   >(() => conditionalWonFieldsFromSaved(saved));
@@ -221,7 +218,6 @@ export default function BidCalcPage() {
       setMonths(String(s.months));
       setLoanRate(resolveBidLoanRate(s.loanRate));
       setMargin(resolveBidMargin(s.margin));
-      setCostRate(`${(s.costRate * 100).toFixed(1)}%`);
       setConditionalWonFields(conditionalWonFieldsFromSaved(s));
       setOfficialPrice(
         s.officialPrice ? formatComma(s.officialPrice) : '',
@@ -365,14 +361,12 @@ export default function BidCalcPage() {
   );
 
   const converged = useMemo(() => {
-    const cost = parseFloat(costRate) / 100 || 0.05;
     const m = Math.min(6, Math.max(1, parseFloat(months) || 6));
     return convergeBid({
       sellPrice: sellPriceWon,
       months: m,
       loanRate: loanRate / 100,
       margin: margin / 100,
-      costRate: cost,
       conditionalExtra: otherConditionalExtra,
       buildingVat: buildingVatWon,
       propertySize: propertySizeClass,
@@ -391,7 +385,6 @@ export default function BidCalcPage() {
     months,
     loanRate,
     margin,
-    costRate,
     otherConditionalExtra,
     buildingVatWon,
     propertySizeClass,
@@ -405,6 +398,7 @@ export default function BidCalcPage() {
 
   const bid = converged;
   const costs = converged.costs;
+  const yieldTierTone = yieldTierClass(bid.netYield);
   const actualPreTaxMarginPct =
     bid.effectiveSellPrice > 0
       ? (bid.grossProfit / bid.effectiveSellPrice) * 100
@@ -478,7 +472,6 @@ export default function BidCalcPage() {
       months: Math.min(6, Math.max(1, parseFloat(months) || 6)),
       loanRate,
       margin,
-      costRate: parseFloat(costRate) / 100 || 0.05,
       conditionalMan: conditionalManForSave(
         conditionalWonFields,
         farmTaxAutoApplies ? farmTaxWon : undefined,
@@ -492,7 +485,6 @@ export default function BidCalcPage() {
       months,
       loanRate,
       margin,
-      costRate,
       conditionalWonFields,
       officialPriceWon,
       buildingVatSaved,
@@ -512,7 +504,6 @@ export default function BidCalcPage() {
           months: payload.months,
           loanRate: payload.loanRate,
           margin: payload.margin,
-          costRate: payload.costRate,
           unpaidMgmtFeeMan: payload.conditionalMan.unpaidMgmtFeeMan,
           evictionCostMan: payload.conditionalMan.evictionCostMan,
           miscOtherCostMan: payload.conditionalMan.miscOtherCostMan,
@@ -609,15 +600,6 @@ export default function BidCalcPage() {
             />
           </div>
           <div className="field">
-            <label htmlFor="costRate">취득 비용률 (개략)</label>
-            <input
-              id="costRate"
-              type="text"
-              value={costRate}
-              onChange={(e) => setCostRate(e.target.value)}
-            />
-          </div>
-          <div className="field">
             <label htmlFor="officialPrice">공시가격 (시가표준액)</label>
             <input
               id="officialPrice"
@@ -686,8 +668,8 @@ export default function BidCalcPage() {
           <div className="field calc-range-field">
             <label htmlFor="marginRange">
               {ko.bidCalc.targetMarginLabel}{' '}
-              <span className="range-val">
-                {marginLabelText(margin)} ({margin.toFixed(1)}%)
+              <span className={`range-val ${yieldTierTone}`}>
+                {yieldLabelText(bid.netYield)} ({margin.toFixed(1)}%)
               </span>
             </label>
             <input
@@ -700,8 +682,8 @@ export default function BidCalcPage() {
               onChange={(e) => setMargin(parseFloat(e.target.value))}
             />
             <div className="range-ticks">
-              <span>저마진 5% 이하</span>
-              <span>고마진 10% 초과</span>
+              <span>저마진 수익률 12% 이하</span>
+              <span>고마진 수익률 21% 초과</span>
             </div>
             <p className="field-hint">{ko.bidCalc.targetMarginHint}</p>
           </div>
@@ -809,7 +791,11 @@ export default function BidCalcPage() {
           },
           {
             label: '세후 예상수익',
-            value: <WonExactAmt amount={bid.netProfit} />,
+            value: (
+              <span className={`bid-key-metric ${yieldTierTone}`}>
+                <WonExactAmt amount={bid.netProfit} />
+              </span>
+            ),
           },
           {
             label: ko.bidCalc.investedCapital,
@@ -817,7 +803,11 @@ export default function BidCalcPage() {
           },
           {
             label: '실투자금 대비 수익률',
-            value: `약 ${bid.netYield.toFixed(1)}%`,
+            value: (
+              <span className={`bid-key-metric ${yieldTierTone}`}>
+                약 {bid.netYield.toFixed(1)}%
+              </span>
+            ),
           },
         ]}
       />
@@ -838,7 +828,7 @@ export default function BidCalcPage() {
             </span>
           </>
         }
-        note='취득 비용률(개략)과 비교할 수 있도록 항목별 금액을 풀어 보여 줍니다. 입찰가 역산은 V11 엑셀과 같이 1차(개략) + (개략−상세)×50% 방식입니다.'
+        note="항목별 상세 비용 합계를 입찰가 역산에 반영합니다. 취득세·이자 등은 낙찰가에 연동되어 고정점까지 반복 계산합니다."
       >
         {costs.items.map((item) => (
           <RiskRow
