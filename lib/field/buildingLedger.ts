@@ -15,6 +15,8 @@ export function platKeyStr(p: PlatKey): string {
 
 export type BuildingTitle = {
   useAprYear: number | null;
+  /** 사용승인일 YYYYMMDD · YYYYMM */
+  useAprDay?: string | null;
   dongName: string | null;
   buildingName: string | null;
   hhldCnt: number | null;
@@ -37,6 +39,7 @@ export type BuildingRecap = {
   bldNm: string | null;
   hhldCnt: number;
   mainBldCnt: number;
+  useAprDay?: string | null;
 };
 
 function padParcel(n: string | undefined): string {
@@ -148,9 +151,113 @@ export async function countExclusiveResidentialUnits(
   return seen.size;
 }
 
+export function normalizeUseAprDay(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const spaced = trimmed.match(
+    /^(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]?\s*(\d{1,2})/,
+  );
+  if (spaced) {
+    const y = Number(spaced[1]);
+    const m = Number(spaced[2]);
+    const d = Number(spaced[3]);
+    if (y > 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${String(y)}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`;
+    }
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length >= 8) {
+    const y = Number(digits.slice(0, 4));
+    const m = Number(digits.slice(4, 6));
+    const d = Number(digits.slice(6, 8));
+    if (y > 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return digits.slice(0, 8);
+    }
+  }
+  if (digits.length >= 6) {
+    const y = Number(digits.slice(0, 4));
+    const m = Number(digits.slice(4, 6));
+    if (y > 1900 && m >= 1 && m <= 12) return digits.slice(0, 6);
+  }
+  return null;
+}
+
+/** 경매 소재지의 동 번호 — 법정동(봉천동)과 구분 */
+export function dongHintFromAddress(text: string): string | null {
+  const numbered = text.match(/(\d{1,4})\s*동(?=\s|,|$|층)/);
+  if (numbered) return `${numbered[1]}동`;
+  const named = text.match(/([A-Za-z가-힣]{1,6}동)(?=\s+\d{1,2}\s*층)/);
+  if (named && !/(특별시|광역시|자치)$/.test(named[1])) return named[1];
+  return null;
+}
+
+function isMainTitle(t: BuildingTitle): boolean {
+  if (t.mainAtchGbCd === '1') return false;
+  if (t.mainAtchGbCdNm?.includes('부속')) return false;
+  return true;
+}
+
+function dongNamesMatch(dongName: string | null, hint: string): boolean {
+  const n = (dongName ?? '').replace(/\s+/g, '');
+  const h = hint.replace(/\s+/g, '');
+  if (!n || !h) return false;
+  if (n === h) return true;
+  return n.replace(/동$/, '') === h.replace(/동$/, '');
+}
+
+export type TitleUseApr = {
+  useAprYear: number | null;
+  useAprDay: string | null;
+};
+
+/** 아파트는 동별 사용승인일이 다를 수 있어, 소재지 동을 우선한다 */
+export function pickTitleUseApr(
+  titles: BuildingTitle[],
+  dongHint?: string | null,
+): TitleUseApr | null {
+  const pickFrom = (pool: BuildingTitle[]): BuildingTitle | null => {
+    if (pool.length === 0) return null;
+    if (dongHint) {
+      const hit = pool.find(
+        (t) =>
+          dongNamesMatch(t.dongName, dongHint) &&
+          (t.useAprDay || t.useAprYear),
+      );
+      if (hit) return hit;
+    }
+    const withDay = pool.filter((t) => (t.useAprDay ?? '').length >= 8);
+    if (withDay.length > 0) {
+      return [...withDay].sort((a, b) =>
+        (a.useAprDay ?? '').localeCompare(b.useAprDay ?? ''),
+      )[0];
+    }
+    const withYm = pool.filter((t) => (t.useAprDay ?? '').length >= 6);
+    if (withYm.length > 0) return withYm[0];
+    return pool.find((t) => t.useAprYear) ?? null;
+  };
+
+  const mains = titles.filter(isMainTitle);
+  const t = pickFrom(mains.length > 0 ? mains : titles) ?? pickFrom(titles);
+  if (!t) return null;
+  return { useAprYear: t.useAprYear, useAprDay: t.useAprDay ?? null };
+}
+
+export function pickRecapUseApr(recaps: BuildingRecap[]): string | null {
+  const days = recaps
+    .map((r) => r.useAprDay)
+    .filter((d): d is string => Boolean(d && d.length >= 6));
+  if (days.length === 0) return null;
+  return [...days].sort((a, b) => b.length - a.length || a.localeCompare(b))[0];
+}
+
 function titleFromRow(row: Record<string, string>): BuildingTitle {
-  const day = pickField(row, ['useAprDay', '사용승인일']);
-  const year = day.length >= 4 ? Number(day.slice(0, 4)) : null;
+  const day = pickField(row, ['useAprDay', 'useAprDe', '사용승인일']);
+  const useAprDay = normalizeUseAprDay(day);
+  const year = useAprDay
+    ? Number(useAprDay.slice(0, 4))
+    : day.length >= 4
+      ? Number(day.slice(0, 4))
+      : null;
   const dong = pickField(row, ['dongNm', '동명칭']) || null;
   const buildingName = pickField(row, ['bldNm', '건물명']) || null;
   const hhldRaw = pickField(row, ['hhldCnt', '세대수']);
@@ -164,6 +271,7 @@ function titleFromRow(row: Record<string, string>): BuildingTitle {
   const etcPurps = pickField(row, ['etcPurps', '기타용도']) || null;
   return {
     useAprYear: year && year > 1900 ? year : null,
+    useAprDay,
     dongName: dong,
     buildingName,
     hhldCnt,
@@ -195,13 +303,23 @@ export async function fetchBuildingTitles(input: {
     delete params.ji;
   }
 
-  const { items, error } = await fetchDataGoKrItems(
-    'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo',
-    params,
-  );
-  if (error) return { titles: [], error };
+  const titles: BuildingTitle[] = [];
+  for (let pageNo = 1; pageNo <= 15; pageNo++) {
+    const { items, error } = await fetchDataGoKrItems(
+      'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo',
+      { ...params, numOfRows: '100', pageNo: String(pageNo) },
+      { retries: pageNo === 1 ? 3 : 1 },
+    );
+    if (error) {
+      if (pageNo === 1) return { titles: [], error };
+      break;
+    }
+    if (items.length === 0) break;
+    titles.push(...items.map(titleFromRow));
+    if (items.length < 100) break;
+  }
 
-  return { titles: items.map(titleFromRow) };
+  return { titles };
 }
 
 export async function fetchAttachedPlats(plat: PlatKey): Promise<PlatKey[]> {
@@ -289,6 +407,9 @@ function recapFromRow(row: Record<string, string>): BuildingRecap | null {
     bldNm: pickField(row, ['bldNm', '건물명']) || null,
     hhldCnt: hhld,
     mainBldCnt: bld,
+    useAprDay: normalizeUseAprDay(
+      pickField(row, ['useAprDay', 'useAprDe', '사용승인일']),
+    ),
   };
 }
 

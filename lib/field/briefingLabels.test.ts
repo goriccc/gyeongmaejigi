@@ -16,4 +16,13 @@ describe('briefingLabels', () => {
       `${new Date().getFullYear()}년`,
     );
   });
+
+  it('formats full use approval date', () => {
+    expect(
+      formatBuildYearLabel(1987, '19871029', new Date('2026-08-19')),
+    ).toBe('1987년 10월 29일 (38년차)');
+    expect(
+      formatBuildYearLabel(1987, '19871029', new Date('2026-10-29')),
+    ).toBe('1987년 10월 29일 (39년차)');
+  });
 });

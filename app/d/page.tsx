@@ -7,6 +7,7 @@ import { Section } from '@/components/ui/Section';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { RiskRow } from '@/components/ui/RiskRow';
 import { Badge } from '@/components/ui/Badge';
+import { BounceDots } from '@/components/ui/BounceDots';
 import { Disclaimer } from '@/components/ui/Disclaimer';
 import { resolveBidLoanRate, resolveBidMargin, yieldLabelText, yieldTierClass, DEFAULT_BID_MARGIN } from '@/lib/calc/bidCalculator';
 import { convergeBid } from '@/lib/calc/bidConverge';
@@ -653,7 +654,12 @@ export default function BidCalcPage() {
             <p className="field-hint">
               국민주택채권 매입·할인비 자동 계산에 사용합니다. 할인율은
               당일(주말·공휴일은 직전 영업일) 주택도시기금 고시 기준입니다.
-              {housingBondLoading ? ' 조회 중…' : null}
+              {housingBondLoading ? (
+                <>
+                  {' '}
+                  <BounceDots />
+                </>
+              ) : null}
               {housingBond && !housingBondLoading ? (
                 housingBond.exempt ? (
                   ' · 매입 면제 구간'

@@ -19,6 +19,7 @@ import {
   aggregateNamedRecaps,
   reconcileHouseholdCount,
   shouldExpandComplexPlats,
+  scaleFromSeedTitles,
 } from '@/lib/field/complexScale';
 import type { PlatKey } from '@/lib/field/buildingLedger';
 import { titleHouseholdCount } from '@/lib/field/buildingLedger';
@@ -442,5 +443,25 @@ describe('collectPlatKeys', () => {
     ];
     const plats = collectPlatKeys(seed, attached, matched);
     expect(plats).toHaveLength(3);
+  });
+});
+
+describe('scaleFromSeedTitles', () => {
+  it('건물명 없는 다세대 표제부에서 세대수를 읽는다', () => {
+    expect(
+      scaleFromSeedTitles([
+        {
+          useAprYear: 1987,
+          dongName: null,
+          buildingName: null,
+          hhldCnt: 6,
+          hoCnt: null,
+          mainAtchGbCd: '0',
+          mainAtchGbCdNm: '주건축물',
+          mainPurpsCdNm: '공동주택',
+          etcPurps: '다세대주택',
+        },
+      ]),
+    ).toEqual({ householdCount: 6, buildingCount: 1 });
   });
 });

@@ -7,11 +7,13 @@ import {
   formatScaleLabel,
 } from '@/lib/field/briefingLabels';
 import { formatExclusiveAreaM2 } from '@/lib/format';
+import { BounceDots } from '@/components/ui/BounceDots';
 
 export type BiddingCaseDetailsValues = {
   address: string;
   exclusiveAreaM2?: number;
   buildYear?: number | null;
+  useAprDay?: string | null;
   householdCount?: number;
   buildingCount?: number;
   factsLoading?: boolean;
@@ -27,25 +29,48 @@ type Props = {
   values: BiddingCaseDetailsValues;
   readOnly: boolean;
   onAddressChange?: (value: string) => void;
+  onAddressBlur?: () => void;
   onAppraisalChange?: (value: string) => void;
   onMinSalePriceChange?: (value: string) => void;
   onAuctionDateChange?: (value: string) => void;
 };
 
-function factValue(
-  loading: boolean | undefined,
-  value: string | null | undefined,
-  missing: string,
-): string {
-  if (loading) return ko.caseForm.factsLoading;
-  if (value) return value;
-  return missing;
+function ReadonlyFact({
+  label,
+  loading,
+  value,
+  missing,
+}: {
+  label: string;
+  loading?: boolean;
+  value: string | null | undefined;
+  missing: string;
+}) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      {loading ? (
+        <div className="case-readonly case-fact-loading">
+          <BounceDots />
+        </div>
+      ) : (
+        <input
+          type="text"
+          readOnly
+          tabIndex={-1}
+          className="case-readonly"
+          value={value || missing}
+        />
+      )}
+    </div>
+  );
 }
 
 export function BiddingCaseDetailsFields({
   values,
   readOnly,
   onAddressChange,
+  onAddressBlur,
   onAppraisalChange,
   onMinSalePriceChange,
   onAuctionDateChange,
@@ -56,7 +81,7 @@ export function BiddingCaseDetailsFields({
   );
   const yearLabel =
     values.buildYear && values.buildYear > 0
-      ? formatBuildYearLabel(values.buildYear)
+      ? formatBuildYearLabel(values.buildYear, values.useAprDay)
       : null;
 
   return (
@@ -77,6 +102,7 @@ export function BiddingCaseDetailsFields({
               ? undefined
               : (e) => onAddressChange(e.target.value)
           }
+          onBlur={readOnly ? undefined : onAddressBlur}
         />
       </div>
 
@@ -99,34 +125,18 @@ export function BiddingCaseDetailsFields({
               }
             />
           </div>
-          <div className="field">
-            <label>{ko.caseForm.buildYear}</label>
-            <input
-              type="text"
-              readOnly
-              tabIndex={-1}
-              className="case-readonly"
-              value={factValue(
-                values.factsLoading,
-                yearLabel,
-                ko.caseForm.buildYearMissing,
-              )}
-            />
-          </div>
-          <div className="field">
-            <label>{ko.caseForm.complexScale}</label>
-            <input
-              type="text"
-              readOnly
-              tabIndex={-1}
-              className="case-readonly"
-              value={factValue(
-                values.factsLoading,
-                scaleLabel,
-                ko.caseForm.complexScaleMissing,
-              )}
-            />
-          </div>
+          <ReadonlyFact
+            label={ko.caseForm.buildYear}
+            loading={values.factsLoading}
+            value={yearLabel}
+            missing={ko.caseForm.buildYearMissing}
+          />
+          <ReadonlyFact
+            label={ko.caseForm.complexScale}
+            loading={values.factsLoading}
+            value={scaleLabel}
+            missing={ko.caseForm.complexScaleMissing}
+          />
         </div>
         <div className="case-form-row">
           <div className="field">

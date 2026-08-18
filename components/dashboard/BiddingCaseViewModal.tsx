@@ -93,6 +93,7 @@ export function BiddingCaseViewModal({ caseFile, onClose }: Props) {
               address,
               exclusiveAreaM2: caseFile.exclusiveAreaM2,
               buildYear: briefing?.buildYear,
+              useAprDay: briefing?.useAprDay,
               householdCount: briefing?.householdCount,
               buildingCount: briefing?.buildingCount,
               appraisalDisplay:

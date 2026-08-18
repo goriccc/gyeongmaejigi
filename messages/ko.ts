@@ -70,11 +70,11 @@ export const ko = {
     buildYearMissing: '조회되지 않음',
     complexScale: '규모',
     complexScaleMissing: '조회되지 않음',
-    factsLoading: '조회 중…',
-    lookup: '정보 불러오기',
-    lookupLoading: '조회 중…',
+    factsLoading: '조회 중',
+    lookup: '불러오기',
+    lookupLoading: '조회 중',
     lookupLead:
-      '법원을 선택하고 연도·일련번호를 입력한 뒤 Enter 또는 「정보 불러오기」를 누르세요.',
+      '법원을 선택하고 연도·일련번호를 입력한 뒤 Enter 또는 「불러오기」를 누르세요.',
     lookupLeadPostWin:
       '사건번호를 알면 불러오기를 시도하세요. 매각이 끝난 물건은 진행중 검색에 안 잡힐 수 있습니다. 아는 항목만 입력하고 추가하세요.',
     lookupMissPostWin:

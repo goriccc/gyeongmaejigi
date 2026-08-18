@@ -1,6 +1,6 @@
 import type { FieldBriefingSnapshot } from '@/types/case';
 
-export const BRIEFING_SCHEMA_VERSION = 12;
+export const BRIEFING_SCHEMA_VERSION = 14;
 
 const CONFIG_WARNING_MARKERS = [
   'DATA_GO_KR_SERVICE_KEY',

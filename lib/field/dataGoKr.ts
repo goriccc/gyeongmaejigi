@@ -10,6 +10,18 @@ export function dataGoKrServiceKey(): string {
 
 export type DataGoKrItem = Record<string, string>;
 
+export function isRetryableDataGoKrError(error?: string): boolean {
+  if (!error || error === 'missing-key') return false;
+  if (/^http-5\d\d$/.test(error) || error === 'http-429') return true;
+  return /연결실패|서비스 연결|TIMEOUT|타임아웃|LIMITED NUMBER OF SERVICE REQUESTS/i.test(
+    error,
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function asItemList(raw: unknown): DataGoKrItem[] {
   if (!raw) return [];
   if (Array.isArray(raw)) {
@@ -42,7 +54,7 @@ function parseXmlItems(xml: string): DataGoKrItem[] {
   });
 }
 
-export async function fetchDataGoKrItems(
+async function fetchDataGoKrItemsOnce(
   endpoint: string,
   params: Record<string, string>,
 ): Promise<{ items: DataGoKrItem[]; error?: string }> {
@@ -88,6 +100,20 @@ export async function fetchDataGoKrItems(
   } catch {
     return { items: parseXmlItems(text) };
   }
+}
+
+export async function fetchDataGoKrItems(
+  endpoint: string,
+  params: Record<string, string>,
+  options?: { retries?: number },
+): Promise<{ items: DataGoKrItem[]; error?: string }> {
+  const retries = Math.max(0, options?.retries ?? 0);
+  let last = await fetchDataGoKrItemsOnce(endpoint, params);
+  for (let i = 0; i < retries && isRetryableDataGoKrError(last.error); i++) {
+    await sleep(350 * (i + 1));
+    last = await fetchDataGoKrItemsOnce(endpoint, params);
+  }
+  return last;
 }
 
 export function pickField(row: DataGoKrItem, keys: string[]): string {

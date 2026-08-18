@@ -1,6 +1,13 @@
 import { geocodeAddressDetail } from '@/lib/auction/geocode';
-import { fetchBuildingTitles } from '@/lib/field/buildingLedger';
 import {
+  fetchBuildingRecap,
+  fetchBuildingTitles,
+  dongHintFromAddress,
+  pickRecapUseApr,
+  pickTitleUseApr,
+} from '@/lib/field/buildingLedger';
+import {
+  inferPropTypeFromLedger,
   isComplexLike,
   liquidityKindFor,
   type PropType,
@@ -8,6 +15,7 @@ import {
 import {
   fetchComplexScale,
   resolveCanonicalComplexName,
+  scaleFromSeedTitles,
 } from '@/lib/field/complexScale';
 import { fetchMatchingTrades } from '@/lib/field/rtmsClient';
 import { liquiditySampleSize } from '@/lib/field/tradeLiquidity';
@@ -39,7 +47,7 @@ function toTrade(t: {
 export async function assembleFieldBriefing(
   c: FieldBriefingInput,
 ): Promise<FieldBriefingSnapshot> {
-  const propType: PropType = c.entryMatchInputs?.propType ?? '아파트';
+  let propType: PropType = c.entryMatchInputs?.propType ?? '아파트';
   const address = c.address?.trim() ?? '';
 
   const base: FieldBriefingSnapshot = {
@@ -80,10 +88,19 @@ export async function assembleFieldBriefing(
     return base;
   }
 
-  const useAprYear =
-    titles.find((t) => t.useAprYear)?.useAprYear ??
-    null;
-  if (useAprYear) base.buildYear = useAprYear;
+  propType = inferPropTypeFromLedger(titles, propType);
+  base.propType = propType;
+
+  const dongHint = dongHintFromAddress(`${c.name ?? ''} ${address}`);
+  const picked = pickTitleUseApr(titles, dongHint);
+  if (picked?.useAprYear) base.buildYear = picked.useAprYear;
+  if (picked?.useAprDay) base.useAprDay = picked.useAprDay;
+
+  const seedScale = scaleFromSeedTitles(titles);
+  if (seedScale) {
+    base.householdCount = seedScale.householdCount;
+    base.buildingCount = seedScale.buildingCount;
+  }
 
   const kindHint = liquidityKindFor(
     propType,
@@ -152,8 +169,33 @@ export async function assembleFieldBriefing(
     if (scale) {
       if (scale.householdCount > 0) base.householdCount = scale.householdCount;
       if (scale.buildingCount > 0) base.buildingCount = scale.buildingCount;
-    } else {
+      if (
+        scale.useAprDay &&
+        (!base.useAprDay || base.useAprDay.length < 8)
+      ) {
+        base.useAprDay = scale.useAprDay;
+        const y = Number(scale.useAprDay.slice(0, 4));
+        if (y > 1900) base.buildYear = y;
+      }
+    } else if (!seedScale) {
       base.warnings?.push('건축대장에서 세대·동 규모를 찾지 못했습니다.');
+    }
+  } else if (
+    titleErr !== 'missing-key' &&
+    (!base.useAprDay || base.useAprDay.length < 8)
+  ) {
+    const recaps = await fetchBuildingRecap({
+      sigunguCd,
+      bjdongCd,
+      bun: (geo.bun ?? '').replace(/\D/g, '').padStart(4, '0'),
+      ji: (geo.ji ?? '').replace(/\D/g, '').padStart(4, '0') || '0000',
+      mountain: Boolean(geo.mountain),
+    });
+    const recapDay = pickRecapUseApr(recaps);
+    if (recapDay) {
+      base.useAprDay = recapDay;
+      const y = Number(recapDay.slice(0, 4));
+      if (y > 1900) base.buildYear = y;
     }
   }
 

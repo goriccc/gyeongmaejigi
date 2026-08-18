@@ -12,6 +12,7 @@ import {
 } from '@/lib/field/briefingLabels';
 import { formatExclusiveAreaM2 } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
+import { BounceDots } from '@/components/ui/BounceDots';
 import { ko } from '@/messages/ko';
 import type { CaseFile } from '@/types/case';
 
@@ -119,7 +120,7 @@ export function FieldBriefingSection({ caseFile, stopOrder }: Props) {
           disabled={loading || !caseFile.address}
           onClick={() => void refresh()}
         >
-          {loading ? ko.common.loading : ko.fieldBriefing.refresh}
+          {loading ? <BounceDots /> : ko.fieldBriefing.refresh}
         </button>
       </div>
 
@@ -129,7 +130,7 @@ export function FieldBriefingSection({ caseFile, stopOrder }: Props) {
         {briefing?.buildYear ? (
           <div className="field-brief-stat">
             <span className="field-brief-stat-k">연식</span>
-            <span className="field-brief-stat-v">{formatBuildYearLabel(briefing.buildYear)}</span>
+            <span className="field-brief-stat-v">{formatBuildYearLabel(briefing.buildYear, briefing.useAprDay)}</span>
           </div>
         ) : null}
         {scaleLabel ? (

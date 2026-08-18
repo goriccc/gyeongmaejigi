@@ -19,8 +19,10 @@ import { daysUntilAuction, postWinLandingHref } from '@/lib/caseUtils';
 import { stubBidCalcFromWinningBid } from '@/lib/calc/bidFromCase';
 import { briefingNeedsRefetch } from '@/lib/field/briefingCache';
 import { fetchFieldBriefingClient } from '@/lib/field/fetchFieldBriefingClient';
+import { persistCaseBriefingWhenReady } from '@/lib/field/persistCaseBriefing';
 import { BiddingCaseDetailsFields } from '@/components/dashboard/BiddingCaseDetailsFields';
-import type { FieldBriefingSnapshot, PostWinGoals } from '@/types/case';
+import { BounceDots } from '@/components/ui/BounceDots';
+import type { CreateCaseInput, FieldBriefingSnapshot, PostWinGoals } from '@/types/case';
 
 type CaseIntent = 'pre-bid' | 'post-win';
 
@@ -50,7 +52,7 @@ type Props = {
 };
 
 export function NewCaseForm({ onClose }: Props) {
-  const { createCase } = useCases();
+  const { createCase, updateCase } = useCases();
   const router = useRouter();
   const [intent, setIntent] = useState<CaseIntent>('pre-bid');
   const [goalLoan, setGoalLoan] = useState(true);
@@ -81,6 +83,10 @@ export function NewCaseForm({ onClose }: Props) {
   const serialRef = useRef<HTMLInputElement>(null);
   const propertyRef = useRef<HTMLInputElement>(null);
   const factsAbortRef = useRef<AbortController | null>(null);
+  const factsPromiseRef = useRef<Promise<FieldBriefingSnapshot | undefined> | null>(
+    null,
+  );
+  const keepFactsFetchRef = useRef(false);
 
   const fullCaseNumber = useMemo(
     () => buildTakyungCaseNumber(caseYear, caseSerial),
@@ -130,7 +136,9 @@ export function NewCaseForm({ onClose }: Props) {
 
   useEffect(() => {
     return () => {
-      factsAbortRef.current?.abort();
+      if (!keepFactsFetchRef.current) {
+        factsAbortRef.current?.abort();
+      }
     };
   }, []);
 
@@ -149,6 +157,7 @@ export function NewCaseForm({ onClose }: Props) {
 
   function resetLookupFields() {
     factsAbortRef.current?.abort();
+    factsPromiseRef.current = null;
     setLookedUp(false);
     setExclusiveAreaM2(undefined);
     setFieldBriefing(undefined);
@@ -159,6 +168,7 @@ export function NewCaseForm({ onClose }: Props) {
     factsAbortRef.current?.abort();
     const trimmed = nextAddress.trim();
     if (!trimmed) {
+      factsPromiseRef.current = null;
       setFieldBriefing(undefined);
       setFactsLoading(false);
       return;
@@ -166,7 +176,7 @@ export function NewCaseForm({ onClose }: Props) {
     const ac = new AbortController();
     factsAbortRef.current = ac;
     setFactsLoading(true);
-    try {
+    const run = (async () => {
       const briefing = await fetchFieldBriefingClient(
         {
           address: trimmed,
@@ -175,16 +185,51 @@ export function NewCaseForm({ onClose }: Props) {
         },
         ac.signal,
       );
+      return briefingNeedsRefetch(briefing) ? undefined : briefing;
+    })();
+    factsPromiseRef.current = run;
+    try {
+      const briefing = await run;
       if (ac.signal.aborted) return;
-      setFieldBriefing(
-        briefingNeedsRefetch(briefing) ? undefined : briefing,
-      );
+      setFieldBriefing(briefing);
     } catch {
       if (ac.signal.aborted) return;
       setFieldBriefing(undefined);
     } finally {
       if (!ac.signal.aborted) setFactsLoading(false);
     }
+  }
+
+  function readyBriefing() {
+    return fieldBriefing && !briefingNeedsRefetch(fieldBriefing)
+      ? fieldBriefing
+      : undefined;
+  }
+
+  function createAndHydrateBriefing(input: CreateCaseInput) {
+    const briefing = readyBriefing();
+    const pending = factsPromiseRef.current;
+    const created = createCase({
+      ...input,
+      fieldBriefing: briefing,
+    });
+    if (!briefing) {
+      keepFactsFetchRef.current = true;
+      void persistCaseBriefingWhenReady({
+        caseId: created.id,
+        pending,
+        fallback:
+          pending || !input.address
+            ? undefined
+            : {
+                address: input.address,
+                name: input.name,
+                exclusiveAreaM2: input.exclusiveAreaM2,
+              },
+        updateCase,
+      });
+    }
+    return created;
   }
 
   async function lookupCase() {
@@ -292,11 +337,11 @@ export function NewCaseForm({ onClose }: Props) {
       return;
     }
     if (!courtCode || !fullCaseNumber) {
-      setError('법원과 사건번호를 입력한 뒤 정보 불러오기를 실행해 주세요.');
+      setError('법원과 사건번호를 입력한 뒤 불러오기를 실행해 주세요.');
       return;
     }
     if (!lookedUp || !address.trim()) {
-      setError('먼저 경매 정보 불러오기를 완료해 주세요.');
+      setError('먼저 불러오기를 완료해 주세요.');
       return;
     }
     if (!auctionDate) {
@@ -315,7 +360,7 @@ export function NewCaseForm({ onClose }: Props) {
     }
     const minPrice = parseNumberInput(minSalePrice);
 
-    createCase({
+    createAndHydrateBriefing({
       name: address.trim(),
       track: 'bidding',
       courtCode,
@@ -332,10 +377,6 @@ export function NewCaseForm({ onClose }: Props) {
       bidDepositRate: bidDeposit.rate,
       bidDepositAmount: bidDeposit.amount,
       exclusiveAreaM2,
-      fieldBriefing:
-        fieldBriefing && !briefingNeedsRefetch(fieldBriefing)
-          ? fieldBriefing
-          : undefined,
     });
     onClose();
   }
@@ -363,7 +404,7 @@ export function NewCaseForm({ onClose }: Props) {
     const appraisalValue = parseNumberInput(appraisal);
     const minPrice = parseNumberInput(minSalePrice);
 
-    createCase({
+    createAndHydrateBriefing({
       name,
       track: 'bidding',
       courtCode: courtCode || undefined,
@@ -380,10 +421,6 @@ export function NewCaseForm({ onClose }: Props) {
       bidDepositRate: bidDeposit.rate,
       bidDepositAmount: bidDeposit.amount > 0 ? bidDeposit.amount : undefined,
       exclusiveAreaM2,
-      fieldBriefing:
-        fieldBriefing && !briefingNeedsRefetch(fieldBriefing)
-          ? fieldBriefing
-          : undefined,
       bidOutcome: 'won',
       postWinGoals: goals,
       winningBidWon: goalLoan ? winningBidWon : undefined,
@@ -546,7 +583,7 @@ export function NewCaseForm({ onClose }: Props) {
                 onClick={() => void lookupCase()}
                 disabled={lookupLoading}
               >
-                {lookupLoading ? ko.caseForm.lookupLoading : ko.caseForm.lookup}
+                {lookupLoading ? <BounceDots /> : ko.caseForm.lookup}
               </button>
             </div>
           </div>
@@ -558,6 +595,7 @@ export function NewCaseForm({ onClose }: Props) {
                 address,
                 exclusiveAreaM2,
                 buildYear: fieldBriefing?.buildYear,
+                useAprDay: fieldBriefing?.useAprDay,
                 householdCount: fieldBriefing?.householdCount,
                 buildingCount: fieldBriefing?.buildingCount,
                 factsLoading,
@@ -572,6 +610,11 @@ export function NewCaseForm({ onClose }: Props) {
                 auctionDate,
               }}
               onAddressChange={setAddress}
+              onAddressBlur={() => {
+                if (intent === 'post-win' && !lookedUp && address.trim()) {
+                  void loadPropertyFacts(address, exclusiveAreaM2);
+                }
+              }}
               onAppraisalChange={(value) => {
                 const n = parseNumberInput(value);
                 setAppraisal(value === '' ? '' : formatComma(n));

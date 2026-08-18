@@ -160,6 +160,8 @@ export type FieldBriefingSnapshot = {
   schemaVersion?: number;
   propType: '아파트' | '다세대' | '다가구';
   buildYear?: number;
+  /** 사용승인일 YYYYMMDD — 표제부에 연월일이 있을 때 */
+  useAprDay?: string;
   /** 공공데이터 기준 공식 단지명 */
   complexName?: string;
   /** 총괄표제부·다지번 합산 세대 수 */

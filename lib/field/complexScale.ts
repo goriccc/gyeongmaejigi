@@ -13,6 +13,9 @@ import {
   fetchNamedRecapsInSigungu,
   countExclusiveResidentialUnits,
   countExposUnits,
+  dongHintFromAddress,
+  pickRecapUseApr,
+  pickTitleUseApr,
   platKeyStr,
   titleHouseholdCount,
   type BuildingRecap,
@@ -25,6 +28,7 @@ export type ComplexScale = {
   householdCount: number;
   buildingCount: number;
   parcelCount: number;
+  useAprDay?: string;
 };
 
 /** 한 동만 잡히면 단지 전체 필지로 확장 */
@@ -236,6 +240,17 @@ function isMainBuilding(t: BuildingTitle): boolean {
   if (t.mainAtchGbCd === '1') return false;
   if (t.mainAtchGbCdNm?.includes('부속')) return false;
   return true;
+}
+
+/** 단지명 없이 표제부만 있을 때 — 다세대·단독 필지 세대수 */
+export function scaleFromSeedTitles(
+  titles: BuildingTitle[],
+): { householdCount: number; buildingCount: number } | null {
+  const mains = titles.filter(isMainBuilding);
+  const src = mains.length > 0 ? mains : titles;
+  const householdCount = src.reduce((n, t) => n + titleHouseholdCount(t), 0);
+  if (householdCount <= 0) return null;
+  return { householdCount, buildingCount: Math.max(1, src.length) };
 }
 
 function isResidentialBuilding(t: BuildingTitle): boolean {
@@ -507,6 +522,11 @@ export async function fetchComplexScale(input: {
   if (input.propType === '다가구') return null;
 
   const seedKey = platKeyStr(input.seedPlat);
+  const dongHint = dongHintFromAddress(input.address ?? '');
+  let useAprDay = pickTitleUseApr(input.seedTitles, dongHint)?.useAprDay ?? null;
+  const fillDay = (d?: string | null) => {
+    if (d && (!useAprDay || d.length > useAprDay.length)) useAprDay = d;
+  };
 
   let plats = [input.seedPlat];
   let totals = await scaleFromPlats(
@@ -550,6 +570,7 @@ export async function fetchComplexScale(input: {
       canonicalName: input.canonicalName,
     });
     if (namedRecaps.length > 0) {
+      fillDay(pickRecapUseApr(namedRecaps));
       totals = pickLargerComplexScale(
         totals,
         aggregateNamedRecaps(namedRecaps),
@@ -567,6 +588,7 @@ export async function fetchComplexScale(input: {
       canonicalName: input.canonicalName,
     });
     if (sigunguRecaps.length > 0) {
+      fillDay(pickRecapUseApr(sigunguRecaps));
       totals = pickLargerComplexScale(
         totals,
         aggregateNamedRecaps(sigunguRecaps),
@@ -584,12 +606,17 @@ export async function fetchComplexScale(input: {
       canonicalName: input.canonicalName,
     });
     if (named.titles.length > 0) {
+      fillDay(pickTitleUseApr(named.titles, dongHint)?.useAprDay);
       plats = collectPlatKeys(input.seedPlat, [], named.plats);
       totals = pickLargerComplexScale(
         totals,
         sumKnownTitles(named.titles, input.canonicalName),
       );
     }
+  }
+
+  if (!useAprDay || useAprDay.length < 8) {
+    fillDay(pickRecapUseApr(await fetchBuildingRecap(input.seedPlat)));
   }
 
   const { householdCount, buildingCount } = totals;
@@ -601,5 +628,6 @@ export async function fetchComplexScale(input: {
     householdCount,
     buildingCount,
     parcelCount: plats.length,
+    ...(useAprDay ? { useAprDay } : {}),
   };
 }
