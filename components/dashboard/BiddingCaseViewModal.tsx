@@ -5,7 +5,7 @@ import { ko } from '@/messages/ko';
 import { formatComma } from '@/lib/format';
 import { parseTakyungCaseNumber } from '@/lib/auction/caseNumberFormat';
 import { resolveBidDeposit } from '@/lib/auction/bidDeposit';
-import { formatAuctionRoundLabel } from '@/lib/auction/auctionRound';
+import { BiddingCaseDetailsFields } from '@/components/dashboard/BiddingCaseDetailsFields';
 import type { CaseFile } from '@/types/case';
 
 type Props = {
@@ -31,6 +31,7 @@ export function BiddingCaseViewModal({ caseFile, onClose }: Props) {
 
   const address = caseFile.address?.trim() || caseFile.name.trim();
   const courtLabel = caseFile.courtName?.trim() || caseFile.courtCode || '—';
+  const briefing = caseFile.fieldBriefing;
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -86,93 +87,30 @@ export function BiddingCaseViewModal({ caseFile, onClose }: Props) {
             </div>
           </div>
 
-          <div className="field">
-            <label>{ko.caseForm.address}</label>
-            <input
-              type="text"
-              readOnly
-              tabIndex={-1}
-              className="case-readonly"
-              value={address}
-            />
-          </div>
-
-          <div className="case-form-grid">
-            <div className="case-form-row">
-              <div className="field">
-                <label>{ko.caseForm.appraisal}</label>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  className="case-readonly"
-                  value={
-                    caseFile.appraisalValue > 0
-                      ? formatComma(caseFile.appraisalValue)
-                      : '—'
-                  }
-                />
-              </div>
-              <div className="field">
-                <label>{ko.caseForm.auctionRound}</label>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  className="case-readonly"
-                  value={formatAuctionRoundLabel(caseFile.auctionRound)}
-                />
-              </div>
-            </div>
-            <div className="case-form-row">
-              <div className="field">
-                <label>{ko.caseForm.minimumSalePrice}</label>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  className="case-readonly"
-                  value={
-                    caseFile.minimumSalePrice
-                      ? formatComma(caseFile.minimumSalePrice)
-                      : '—'
-                  }
-                />
-              </div>
-              <div className="field">
-                <label>{ko.caseForm.bidDeposit}</label>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  className={
-                    bidDeposit.rate === 20
-                      ? 'case-readonly bid-deposit-input-high'
-                      : 'case-readonly'
-                  }
-                  value={
-                    bidDeposit.amount > 0
-                      ? `${formatComma(bidDeposit.amount)} (${bidDeposit.rate}%)`
-                      : '—'
-                  }
-                />
-              </div>
-            </div>
-            <div className="case-form-row case-form-row-date">
-              <div className="field">
-                <label>{ko.caseForm.auctionDate}</label>
-                <input
-                  type="date"
-                  readOnly
-                  tabIndex={-1}
-                  className="case-readonly"
-                  value={caseFile.auctionDate}
-                />
-              </div>
-            </div>
-          </div>
-
-          <p className="field-hint">{ko.caseForm.lookupHint}</p>
+          <BiddingCaseDetailsFields
+            readOnly
+            values={{
+              address,
+              exclusiveAreaM2: caseFile.exclusiveAreaM2,
+              buildYear: briefing?.buildYear,
+              householdCount: briefing?.householdCount,
+              buildingCount: briefing?.buildingCount,
+              appraisalDisplay:
+                caseFile.appraisalValue > 0
+                  ? formatComma(caseFile.appraisalValue)
+                  : '—',
+              auctionRound: caseFile.auctionRound,
+              minSalePriceDisplay: caseFile.minimumSalePrice
+                ? formatComma(caseFile.minimumSalePrice)
+                : '—',
+              bidDepositDisplay:
+                bidDeposit.amount > 0
+                  ? `${formatComma(bidDeposit.amount)} (${bidDeposit.rate}%)`
+                  : '—',
+              bidDepositHigh: bidDeposit.rate === 20,
+              auctionDate: caseFile.auctionDate,
+            }}
+          />
         </div>
 
         <div className="modal-actions">

@@ -14,7 +14,10 @@ import {
   resolveBidDeposit,
   type BidDepositRate,
 } from '@/lib/auction/bidDeposit';
-import { formatAuctionRoundLabel } from '@/lib/auction/auctionRound';
+import { briefingNeedsRefetch } from '@/lib/field/briefingCache';
+import { fetchFieldBriefingClient } from '@/lib/field/fetchFieldBriefingClient';
+import { BiddingCaseDetailsFields } from '@/components/dashboard/BiddingCaseDetailsFields';
+import type { FieldBriefingSnapshot } from '@/types/case';
 
 type CourtOption = { code: string; label: string };
 
@@ -57,6 +60,8 @@ export function NewCaseForm({ onClose }: Props) {
   const [bidDepositRate, setBidDepositRate] = useState<BidDepositRate>(10);
   const [auctionDate, setAuctionDate] = useState('');
   const [exclusiveAreaM2, setExclusiveAreaM2] = useState<number | undefined>();
+  const [fieldBriefing, setFieldBriefing] = useState<FieldBriefingSnapshot | undefined>();
+  const [factsLoading, setFactsLoading] = useState(false);
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -64,6 +69,7 @@ export function NewCaseForm({ onClose }: Props) {
   const [error, setError] = useState('');
   const serialRef = useRef<HTMLInputElement>(null);
   const propertyRef = useRef<HTMLInputElement>(null);
+  const factsAbortRef = useRef<AbortController | null>(null);
 
   const fullCaseNumber = useMemo(
     () => buildTakyungCaseNumber(caseYear, caseSerial),
@@ -111,6 +117,12 @@ export function NewCaseForm({ onClose }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      factsAbortRef.current?.abort();
+    };
+  }, []);
+
   function applyParsedCaseNumber(value: string) {
     const parsed = parseTakyungCaseNumber(value);
     if (parsed) {
@@ -125,8 +137,43 @@ export function NewCaseForm({ onClose }: Props) {
   }, [propertyNumber]);
 
   function resetLookupFields() {
+    factsAbortRef.current?.abort();
     setLookedUp(false);
     setExclusiveAreaM2(undefined);
+    setFieldBriefing(undefined);
+    setFactsLoading(false);
+  }
+
+  async function loadPropertyFacts(nextAddress: string, nextArea?: number) {
+    factsAbortRef.current?.abort();
+    const trimmed = nextAddress.trim();
+    if (!trimmed) {
+      setFieldBriefing(undefined);
+      setFactsLoading(false);
+      return;
+    }
+    const ac = new AbortController();
+    factsAbortRef.current = ac;
+    setFactsLoading(true);
+    try {
+      const briefing = await fetchFieldBriefingClient(
+        {
+          address: trimmed,
+          name: trimmed,
+          exclusiveAreaM2: nextArea,
+        },
+        ac.signal,
+      );
+      if (ac.signal.aborted) return;
+      setFieldBriefing(
+        briefingNeedsRefetch(briefing) ? undefined : briefing,
+      );
+    } catch {
+      if (ac.signal.aborted) return;
+      setFieldBriefing(undefined);
+    } finally {
+      if (!ac.signal.aborted) setFactsLoading(false);
+    }
   }
 
   async function lookupCase() {
@@ -184,6 +231,7 @@ export function NewCaseForm({ onClose }: Props) {
         setPropertyNumber(String(data.propertyNumber));
       }
       setLookedUp(true);
+      void loadPropertyFacts(data.address ?? '', data.exclusiveAreaM2);
 
       if (!data.appraisalValue || !data.auctionDate) {
         setError(
@@ -258,6 +306,10 @@ export function NewCaseForm({ onClose }: Props) {
       bidDepositRate: bidDeposit.rate,
       bidDepositAmount: bidDeposit.amount,
       exclusiveAreaM2,
+      fieldBriefing:
+        fieldBriefing && !briefingNeedsRefetch(fieldBriefing)
+          ? fieldBriefing
+          : undefined,
     });
     onClose();
   }
@@ -360,109 +412,37 @@ export function NewCaseForm({ onClose }: Props) {
           </div>
 
           {lookedUp ? (
-            <>
-              <div className="field">
-                <label htmlFor="case-address">{ko.caseForm.address}</label>
-                <input
-                  id="case-address"
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="case-exclusive-area">
-                  {ko.caseForm.exclusiveArea}
-                </label>
-                <input
-                  id="case-exclusive-area"
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  className="case-readonly"
-                  value={
-                    exclusiveAreaM2 != null && exclusiveAreaM2 > 0
-                      ? `${exclusiveAreaM2} ㎡`
-                      : ko.caseForm.exclusiveAreaMissing
-                  }
-                />
-              </div>
-              <div className="case-form-grid">
-                <div className="case-form-row">
-                  <div className="field">
-                    <label htmlFor="case-appraisal">{ko.caseForm.appraisal}</label>
-                    <input
-                      id="case-appraisal"
-                      type="text"
-                      value={appraisal}
-                      onChange={(e) => {
-                        const n = parseNumberInput(e.target.value);
-                        setAppraisal(e.target.value === '' ? '' : formatComma(n));
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="case-round">{ko.caseForm.auctionRound}</label>
-                    <input
-                      id="case-round"
-                      type="text"
-                      readOnly
-                      tabIndex={-1}
-                      className="case-readonly"
-                      value={formatAuctionRoundLabel(auctionRound)}
-                    />
-                  </div>
-                </div>
-                <div className="case-form-row">
-                  <div className="field">
-                    <label htmlFor="case-min-price">
-                      {ko.caseForm.minimumSalePrice}
-                    </label>
-                    <input
-                      id="case-min-price"
-                      type="text"
-                      value={minSalePrice}
-                      onChange={(e) => {
-                        const n = parseNumberInput(e.target.value);
-                        setMinSalePrice(e.target.value === '' ? '' : formatComma(n));
-                        setMinimumSalePrice(n > 0 ? n : undefined);
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="case-bid-deposit">{ko.caseForm.bidDeposit}</label>
-                    <input
-                      id="case-bid-deposit"
-                      type="text"
-                      readOnly
-                      tabIndex={-1}
-                      className={
-                        bidDeposit.rate === 20
-                          ? 'case-readonly bid-deposit-input-high'
-                          : 'case-readonly'
-                      }
-                      value={
-                        bidDeposit.amount > 0
-                          ? `${formatComma(bidDeposit.amount)} (${bidDeposit.rate}%)`
-                          : '—'
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="case-form-row case-form-row-date">
-                  <div className="field">
-                    <label htmlFor="case-date">{ko.caseForm.auctionDate}</label>
-                    <input
-                      id="case-date"
-                      type="date"
-                      value={auctionDate}
-                      onChange={(e) => setAuctionDate(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-              <p className="field-hint">{ko.caseForm.lookupHint}</p>
-            </>
+            <BiddingCaseDetailsFields
+              readOnly={false}
+              values={{
+                address,
+                exclusiveAreaM2,
+                buildYear: fieldBriefing?.buildYear,
+                householdCount: fieldBriefing?.householdCount,
+                buildingCount: fieldBriefing?.buildingCount,
+                factsLoading,
+                appraisalDisplay: appraisal,
+                auctionRound,
+                minSalePriceDisplay: minSalePrice,
+                bidDepositDisplay:
+                  bidDeposit.amount > 0
+                    ? `${formatComma(bidDeposit.amount)} (${bidDeposit.rate}%)`
+                    : '—',
+                bidDepositHigh: bidDeposit.rate === 20,
+                auctionDate,
+              }}
+              onAddressChange={setAddress}
+              onAppraisalChange={(value) => {
+                const n = parseNumberInput(value);
+                setAppraisal(value === '' ? '' : formatComma(n));
+              }}
+              onMinSalePriceChange={(value) => {
+                const n = parseNumberInput(value);
+                setMinSalePrice(value === '' ? '' : formatComma(n));
+                setMinimumSalePrice(n > 0 ? n : undefined);
+              }}
+              onAuctionDateChange={setAuctionDate}
+            />
           ) : (
             <p className="field-hint">{ko.caseForm.lookupLead}</p>
           )}

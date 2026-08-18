@@ -65,6 +65,11 @@ export const ko = {
     auctionDate: '매각기일',
     exclusiveArea: '전용면적 (㎡)',
     exclusiveAreaMissing: '법원경매에서 조회되지 않음',
+    buildYear: '연식',
+    buildYearMissing: '조회되지 않음',
+    complexScale: '규모',
+    complexScaleMissing: '조회되지 않음',
+    factsLoading: '조회 중…',
     lookup: '정보 불러오기',
     lookupLoading: '조회 중…',
     lookupLead:
@@ -169,12 +174,13 @@ export const ko = {
     noCaseHint:
       '활성 사건 없음 — 입찰 조건은 기기에 저장되며, 사건 선택 시 물건에도 반영됩니다.',
   },
-  fieldChecklist: {
-    title: '현장 체크리스트',
-    empty: '제2장 권리분석을 완료하면 물건별 체크 항목이 생성됩니다.',
-    progress: (done: number, total: number) =>
-      `체크 ${done}/${total} — 현장에서 확인한 항목을 표시하세요.`,
-    next: '체크 완료 — 입찰가 계산으로 →',
+  fieldBriefing: {
+    title: '물건 브리핑',
+    lead: '연식·실거래는 공공데이터로 조회합니다.',
+    refresh: '다시 조회',
+    tradesTitle: '실거래 (같은 단지·유사 면적)',
+    loadMore: (n: number) => `더 보기 (${n}건)`,
+    next: '입찰가 계산으로 →',
   },
   evictionBanner: {
     noCase: '사건을 만들면 분석 결과가 저장됩니다. 지금도 대화 분석은 가능합니다.',

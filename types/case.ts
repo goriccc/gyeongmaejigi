@@ -139,6 +139,39 @@ export type EntryMatchResult = {
   dsrCapacity: number;
 };
 
+export type FieldBriefingTrade = {
+  yearMonth: string;
+  day: number;
+  dong: string | null;
+  floor: string | null;
+  areaM2: number | null;
+  amountMan: number;
+};
+
+export type FieldBriefingSnapshot = {
+  fetchedAt: string;
+  /** 캐시 무효화용 — 필드 추가 시 증가 */
+  schemaVersion?: number;
+  propType: '아파트' | '다세대' | '다가구';
+  buildYear?: number;
+  /** 공공데이터 기준 공식 단지명 */
+  complexName?: string;
+  /** 총괄표제부·다지번 합산 세대 수 */
+  householdCount?: number;
+  /** 총괄표제부·다지번 합산 동(건축물) 수 */
+  buildingCount?: number;
+  trades?: FieldBriefingTrade[];
+  warnings?: string[];
+};
+
+/** 브리핑 조회에 필요한 최소 입력 — 사건 생성 전 미리보기에도 사용 */
+export type FieldBriefingInput = {
+  address?: string;
+  name?: string;
+  exclusiveAreaM2?: number;
+  entryMatchInputs?: EntryMatchInputs;
+};
+
 export type CaseFile = {
   id: string;
   name: string;
@@ -220,6 +253,8 @@ export type CaseFile = {
   };
   /** 내용증명 초안 (LLM) */
   contentProof?: ContentProofCompare;
+  /** 임장 브리핑 (연식·실거래) */
+  fieldBriefing?: FieldBriefingSnapshot;
 };
 
 export type CreateCaseInput = {
@@ -240,4 +275,5 @@ export type CreateCaseInput = {
   bidDepositAmount?: number;
   clientLabel?: string;
   exclusiveAreaM2?: number;
+  fieldBriefing?: FieldBriefingSnapshot;
 };

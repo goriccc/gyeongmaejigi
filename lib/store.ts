@@ -75,6 +75,7 @@ export const localCaseStore: CaseStore = {
       courtName: input.courtName?.trim() || undefined,
       address: input.address?.trim() || undefined,
       exclusiveAreaM2: input.exclusiveAreaM2,
+      fieldBriefing: input.fieldBriefing,
       latitude: input.latitude,
       longitude: input.longitude,
       stage: track === 'eviction' ? 'E' : 'A',

@@ -13,6 +13,7 @@ import {
 import { readJsonSafe } from '@/lib/http/readJsonSafe';
 import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
 import { ko } from '@/messages/ko';
+import { isContentProofStale } from '@/lib/eviction/contentProofStale';
 import { normalizeCaseTrack } from '@/lib/caseUtils';
 import type {
   ContentProofCompare,
@@ -152,14 +153,33 @@ export default function EvictionCoachPage() {
     setNewPaste('');
     setCompare(activeCase?.evictionCoach ?? null);
     setError('');
-    setCertCompare(activeCase?.contentProof ?? null);
+
+    const proof = activeCase?.contentProof;
+    if (
+      activeCase &&
+      proof &&
+      isContentProofStale(
+        proof,
+        activeCase.evictionCoach,
+        activeCase.evictionConversationLog,
+      )
+    ) {
+      setCertCompare(null);
+      updateCase(activeCase.id, { contentProof: undefined });
+      return;
+    }
+    setCertCompare(proof ?? null);
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const persistLog = useCallback(
     (log: EvictionConversationLog) => {
       setConversationLog(log);
+      setCertCompare(null);
       if (activeCase) {
-        updateCase(activeCase.id, { evictionConversationLog: log });
+        updateCase(activeCase.id, {
+          evictionConversationLog: log,
+          contentProof: undefined,
+        });
       }
     },
     [activeCase, updateCase],
@@ -168,17 +188,18 @@ export default function EvictionCoachPage() {
   function persistEviction(next: EvictionCoachCompare) {
     if (!activeCase) return;
     const primary = next.claude;
+    const patch: Parameters<typeof updateCase>[1] = {
+      evictionCoach: next,
+      contentProof: undefined,
+    };
     if (primary && !primary.error) {
-      updateCase(activeCase.id, {
-        evictionCoach: next,
-        evictionSummary: {
-          resistLevel: primary.resistLevel,
-          nextActions: primary.nextActions,
-        },
-      });
-    } else {
-      updateCase(activeCase.id, { evictionCoach: next });
+      patch.evictionSummary = {
+        resistLevel: primary.resistLevel,
+        nextActions: primary.nextActions,
+      };
     }
+    setCertCompare(null);
+    updateCase(activeCase.id, patch);
   }
 
   async function runAnalysis(conversation: string) {
@@ -187,6 +208,9 @@ export default function EvictionCoachPage() {
     setError('');
     setCompare({ analyzedAt: new Date().toISOString() });
     setCertCompare(null);
+    if (activeCase?.contentProof) {
+      updateCase(activeCase.id, { contentProof: undefined });
+    }
     try {
       const res = await fetch('/api/eviction-coach', {
         method: 'POST',

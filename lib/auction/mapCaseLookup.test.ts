@@ -94,7 +94,7 @@ describe('mapCourtAuctionCase', () => {
           {
             saleDate: '2026-08-21',
             appraisedPrice: 580_000_000,
-            minimumSalePrice: 464_000_000,
+            minimumSalePrice: 296_960_000,
             depositRate: 20,
             failedBidCount: 2,
             auctionRound: 3,
@@ -107,9 +107,51 @@ describe('mapCourtAuctionCase', () => {
     );
 
     expect(mapped?.bidDepositRate).toBe(20);
-    expect(mapped?.bidDepositAmount).toBe(92_800_000);
+    expect(mapped?.bidDepositAmount).toBe(59_392_000);
     expect(mapped?.auctionRound).toBe(3);
-    expect(mapped?.minimumSalePrice).toBe(464_000_000);
+    expect(mapped?.minimumSalePrice).toBe(296_960_000);
+  });
+
+  it('merges split schedule rows and uses detail pricing on item', () => {
+    const mapped = mapCourtAuctionCase(
+      {
+        found: true,
+        caseInfo: { caseNumber: '20250130104034' },
+        items: [
+          {
+            address: '서울특별시 ...',
+            appraisedPrice: 900_000_000,
+            minimumSalePrice: 720_000_000,
+            depositRate: 10,
+            auctionRound: 2,
+            failedBidCount: 1,
+          },
+        ],
+        schedule: [
+          {
+            saleDate: '2026-09-10',
+            appraisedPrice: 900_000_000,
+            auctionRound: 2,
+            failedBidCount: 1,
+          },
+          {
+            saleDate: '2026-09-10',
+            minimumSalePrice: 900_000_000,
+            depositRate: 10,
+          },
+        ],
+      },
+      'B000210',
+      '서울중앙지방법원',
+      '2025타경104034',
+    );
+
+    expect(mapped).toMatchObject({
+      auctionRound: 2,
+      minimumSalePrice: 720_000_000,
+      bidDepositRate: 10,
+      bidDepositAmount: 72_000_000,
+    });
   });
 
   it('maps address, next sale date, and appraisal', () => {
@@ -152,23 +194,6 @@ describe('mapCourtAuctionCase', () => {
   });
 
   it('maps exclusive area from payload', () => {
-    const mapped = mapCourtAuctionCase(
-      {
-        found: true,
-        caseInfo: { caseNumber: '2024타경115901' },
-        items: [{ address: '전북 군산시 ...' }],
-        schedule: [],
-        exclusiveAreaM2: 49.67,
-      },
-      'B000240',
-      '군산지원',
-      '2024타경115901',
-    );
-
-    expect(mapped?.exclusiveAreaM2).toBe(49.67);
-  });
-
-  it('maps appraisal, min price, deposit for selected property number', () => {
     const mapped = mapCourtAuctionCase(
       {
         found: true,

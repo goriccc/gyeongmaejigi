@@ -17,14 +17,17 @@ export function toAuctionRound(
 }
 
 export function parseAuctionRound(row: Record<string, unknown>): number | undefined {
+  const fromFailed = toAuctionRound(
+    parseFailedBidCount(row.flbdNcnt ?? row.yuchalCnt ?? row.usflbdNcnt),
+  );
+  if (fromFailed) return fromFailed;
+
   const direct = parseFailedBidCount(
     row.dspslDxdySeq ?? row.maeGiilSeq ?? row.dxdyOrd ?? row.dxdySeq,
   );
   if (direct !== null && direct > 0) return direct;
 
-  return toAuctionRound(
-    parseFailedBidCount(row.flbdNcnt ?? row.yuchalCnt ?? row.usflbdNcnt),
-  );
+  return undefined;
 }
 
 export function formatAuctionRoundLabel(round: number | undefined): string {

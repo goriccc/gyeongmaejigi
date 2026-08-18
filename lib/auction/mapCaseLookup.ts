@@ -5,6 +5,7 @@ import {
   stripHtml,
 } from '@/lib/auction/caseNumberFormat';
 import { resolveBidDeposit } from '@/lib/auction/bidDeposit';
+import { resolveMinimumSalePrice } from '@/lib/auction/minimumSalePrice';
 import { toAuctionRound } from '@/lib/auction/auctionRound';
 
 export type CourtAuctionCasePayload = {
@@ -29,6 +30,7 @@ export type CourtAuctionCasePayload = {
     depositRate?: number | null;
     depositAmount?: number | null;
     exclusiveAreaM2?: number | null;
+    notifyMinPrices?: number[];
   }>;
   schedule?: Array<{
     propertyNumber?: number | null;
@@ -62,20 +64,62 @@ export type MappedAuctionCase = {
   exclusiveAreaM2?: number;
 };
 
+type ScheduleRow = NonNullable<CourtAuctionCasePayload['schedule']>[number];
+
 /** 낙찰·유찰 등 명확히 종료된 기일만 제외 */
 const CLOSED_RESULT_CODES = new Set(['0003311', '0003312', '0003313']);
 
-function isClosedSchedule(
-  row: NonNullable<CourtAuctionCasePayload['schedule']>[number],
-) {
+function isClosedSchedule(row: ScheduleRow) {
   const code = row.resultCode?.trim() ?? '';
   if (!code) return false;
   return CLOSED_RESULT_CODES.has(code);
 }
 
-function pickTargetSchedule(
-  schedule: NonNullable<CourtAuctionCasePayload['schedule']>,
-) {
+function coalesceAmount(
+  primary?: number | null,
+  secondary?: number | null,
+): number | undefined {
+  if (primary != null && primary > 0) return primary;
+  if (secondary != null && secondary > 0) return secondary;
+  return undefined;
+}
+
+function scheduleRowKey(row: ScheduleRow): string {
+  return `${row.propertyNumber ?? 0}|${row.saleDate ?? ''}`;
+}
+
+/** 사건상세·물건검색 등에서 중복된 기일 행을 하나로 합칩니다. */
+export function mergeScheduleEntries(schedule: ScheduleRow[]): ScheduleRow[] {
+  const byKey = new Map<string, ScheduleRow>();
+
+  for (const row of schedule) {
+    const key = scheduleRowKey(row);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, { ...row });
+      continue;
+    }
+    byKey.set(key, {
+      propertyNumber: prev.propertyNumber ?? row.propertyNumber,
+      saleDate: prev.saleDate ?? row.saleDate,
+      appraisedPrice: coalesceAmount(prev.appraisedPrice, row.appraisedPrice),
+      minimumSalePrice: coalesceAmount(
+        prev.minimumSalePrice,
+        row.minimumSalePrice,
+      ),
+      depositRate: prev.depositRate ?? row.depositRate,
+      depositAmount: coalesceAmount(prev.depositAmount, row.depositAmount),
+      failedBidCount: prev.failedBidCount ?? row.failedBidCount,
+      auctionRound: prev.auctionRound ?? row.auctionRound,
+      resultCode: prev.resultCode ?? row.resultCode,
+      exclusiveAreaM2: coalesceAmount(prev.exclusiveAreaM2, row.exclusiveAreaM2),
+    });
+  }
+
+  return [...byKey.values()];
+}
+
+function pickTargetSchedule(schedule: ScheduleRow[]) {
   const sorted = [...schedule].sort((a, b) =>
     (a.saleDate ?? '').localeCompare(b.saleDate ?? ''),
   );
@@ -92,6 +136,60 @@ function pickTargetSchedule(
   if (openAny.length) return openAny[openAny.length - 1];
 
   return sorted[sorted.length - 1];
+}
+
+function hasPricing(row: ScheduleRow): boolean {
+  return (
+    (row.minimumSalePrice ?? 0) > 0 ||
+    (row.depositAmount ?? 0) > 0 ||
+    row.depositRate != null
+  );
+}
+
+/** 금번 회차·기일과 맞는 최저가·보증금 행 */
+function pickPricingScheduleRow(
+  schedule: ScheduleRow[],
+  target: ScheduleRow | null,
+  auctionRound?: number,
+): ScheduleRow | null {
+  if (target && hasPricing(target)) return target;
+
+  if (target?.saleDate) {
+    const sameDate = schedule.find(
+      (s) => s.saleDate === target.saleDate && hasPricing(s),
+    );
+    if (sameDate) return sameDate;
+  }
+
+  if (auctionRound && auctionRound > 0) {
+    const sameRound = schedule.find(
+      (s) => s.auctionRound === auctionRound && hasPricing(s),
+    );
+    if (sameRound) return sameRound;
+
+    const failed = auctionRound - 1;
+    const byFailed = schedule.find(
+      (s) => s.failedBidCount === failed && hasPricing(s),
+    );
+    if (byFailed) return byFailed;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const openFuture = [...schedule]
+    .filter(
+      (s) =>
+        s.saleDate &&
+        s.saleDate >= today &&
+        !isClosedSchedule(s) &&
+        hasPricing(s),
+    )
+    .sort((a, b) => (a.saleDate ?? '').localeCompare(b.saleDate ?? ''));
+  if (openFuture.length) return openFuture[0];
+
+  const open = schedule.filter((s) => !isClosedSchedule(s) && hasPricing(s));
+  if (open.length) return open[open.length - 1];
+
+  return target;
 }
 
 export function normalizePropertyNumber(value?: number | null): number {
@@ -157,19 +255,12 @@ export function mapCourtAuctionCase(
     '경매 물건';
 
   const schedule = payload.schedule ?? [];
-  const propertySchedule = filterScheduleForProperty(schedule, propertyNumber);
+  const propertySchedule = mergeScheduleEntries(
+    filterScheduleForProperty(schedule, propertyNumber),
+  );
   const target = propertySchedule.length
     ? pickTargetSchedule(propertySchedule)
     : null;
-
-  const appraisalValue =
-    target?.appraisedPrice ?? targetItem?.appraisedPrice ?? 0;
-
-  const auctionDate =
-    target?.saleDate ?? targetItem?.saleDate ?? '';
-
-  const minimumSalePrice =
-    target?.minimumSalePrice ?? targetItem?.minimumSalePrice ?? undefined;
 
   const auctionRound =
     target?.auctionRound ??
@@ -178,11 +269,46 @@ export function mapCourtAuctionCase(
       target?.failedBidCount ?? targetItem?.failedBidCount,
     );
 
+  const pricing = pickPricingScheduleRow(
+    propertySchedule,
+    target,
+    auctionRound,
+  );
+
+  const appraisalValue =
+    pricing?.appraisedPrice ??
+    target?.appraisedPrice ??
+    targetItem?.appraisedPrice ??
+    0;
+
+  const auctionDate =
+    pricing?.saleDate ?? target?.saleDate ?? targetItem?.saleDate ?? '';
+
+  const minimumSalePriceRaw =
+    targetItem?.minimumSalePrice ??
+    pricing?.minimumSalePrice ??
+    target?.minimumSalePrice ??
+    undefined;
+
+  const minimumSalePrice = resolveMinimumSalePrice({
+    appraisalValue,
+    auctionRound,
+    failedBidCount: target?.failedBidCount ?? targetItem?.failedBidCount,
+    apiMinPrice: minimumSalePriceRaw,
+    notifyMinPrices: targetItem?.notifyMinPrices,
+  });
+
   const deposit = resolveBidDeposit({
     appraisalValue,
     minimumSalePrice,
-    depositAmount: target?.depositAmount ?? targetItem?.depositAmount,
-    depositRate: target?.depositRate ?? targetItem?.depositRate,
+    depositAmount:
+      targetItem?.depositAmount ??
+      pricing?.depositAmount ??
+      target?.depositAmount,
+    depositRate:
+      targetItem?.depositRate ??
+      pricing?.depositRate ??
+      target?.depositRate,
   });
 
   const exclusiveAreaM2 =

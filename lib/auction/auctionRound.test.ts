@@ -14,5 +14,6 @@ describe('auctionRound', () => {
   it('parses round from schedule row', () => {
     expect(parseAuctionRound({ yuchalCnt: '2' })).toBe(3);
     expect(parseAuctionRound({ dspslDxdySeq: '4' })).toBe(4);
+    expect(parseAuctionRound({ yuchalCnt: '1', dspslDxdySeq: '1' })).toBe(2);
   });
 });

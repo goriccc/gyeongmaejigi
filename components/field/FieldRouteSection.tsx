@@ -38,7 +38,11 @@ type RouteSummary = {
   durationLabel: string;
 } | null;
 
-export function FieldRouteSection() {
+type FieldRouteSectionProps = {
+  onFocusCase?: (caseId: string, order?: number) => void;
+};
+
+export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) {
   const { cases, updateCase } = useCases();
   const [dailyCount, setDailyCount] = useState(3);
   const [dayIndex, setDayIndex] = useState(0);
@@ -63,6 +67,18 @@ export function FieldRouteSection() {
   const plan = useMemo(
     () => buildFieldRoutePlan(cases, dailyCount, startPoint),
     [cases, dailyCount, startPoint],
+  );
+
+  const selectStop = useCallback(
+    (caseId: string | null) => {
+      setSelectedCaseId(caseId);
+      if (!caseId) return;
+      const order = plan.days[dayIndex]?.stops.find(
+        (s) => s.caseId === caseId,
+      )?.order;
+      onFocusCase?.(caseId, order);
+    },
+    [onFocusCase, plan.days, dayIndex],
   );
 
   const activeDay: FieldRouteDay | null = plan.days[dayIndex] ?? null;
@@ -209,7 +225,7 @@ export function FieldRouteSection() {
 
   useEffect(() => {
     const first = plan.days[dayIndex]?.stops[0]?.caseId ?? null;
-    setSelectedCaseId(first);
+    selectStop(first);
   }, [dayIndex, plan.days]);
 
   useEffect(() => {
@@ -306,7 +322,7 @@ export function FieldRouteSection() {
                 className={`field-route-day-tab${day.dayIndex === dayIndex ? ' active' : ''}`}
                 onClick={() => {
                   setDayIndex(day.dayIndex);
-                  setSelectedCaseId(day.stops[0]?.caseId ?? null);
+                  selectStop(day.stops[0]?.caseId ?? null);
                 }}
               >
                 {day.label}
@@ -372,7 +388,7 @@ export function FieldRouteSection() {
           pathLegs={routePathLegs}
           pathLoading={routeLoading}
           selectedCaseId={selectedCaseId}
-          onSelectStop={setSelectedCaseId}
+          onSelectStop={(id) => selectStop(id)}
         />
       </div>
 
@@ -397,7 +413,7 @@ export function FieldRouteSection() {
               <button
                 type="button"
                 className="btn-text field-route-stop-link"
-                onClick={() => setSelectedCaseId(stop.caseId)}
+                onClick={() => selectStop(stop.caseId)}
               >
                 <strong>{stop.name}</strong>
               </button>

@@ -1,26 +1,39 @@
 'use client';
 
 import Link from 'next/link';
-import { FieldChecklistSection } from '@/components/field/FieldChecklistSection';
+import { useMemo, useState } from 'react';
+import { FieldBriefingSection } from '@/components/field/FieldBriefingSection';
 import { FieldRouteSection } from '@/components/field/FieldRouteSection';
 import { useCases } from '@/lib/hooks/useCases';
 
 export default function FieldPrepPage() {
-  const { activeCase } = useCases();
+  const { cases, activeCase, activeId, setActiveId } = useCases();
+  const [focusCaseId, setFocusCaseId] = useState<string | null>(null);
+  const [focusOrder, setFocusOrder] = useState<number | null>(null);
   const hasRiskFlags = Boolean(activeCase?.riskFlags?.length);
+
+  const briefingCase = useMemo(() => {
+    const id = focusCaseId ?? activeId;
+    if (!id) return activeCase;
+    return cases.find((c) => c.id === id) ?? activeCase;
+  }, [cases, focusCaseId, activeId, activeCase]);
+
+  function focusCase(id: string, order?: number) {
+    setFocusCaseId(id);
+    setFocusOrder(order && order > 0 ? order : null);
+    setActiveId(id);
+  }
 
   return (
     <>
       <div className="chapter-mark">제3장 · 임장 준비</div>
       <h1 className="page-title">
-        최적의 <em>임장 동선</em>을
+        최적의 <em>임장 동선</em>과
         <br />
-        짜 드립니다.
+        물건 <em>브리핑</em>
       </h1>
       <p className="page-sub">
-        입찰 마감일을 우선해 하루 임장 건수만큼 동선을 짜고, 지도에서 순번을
-        눌러 해당 물건을 확인할 수 있습니다. 소재지는 사건 추가 시
-        법원경매정보에서 불러온 주소를 사용합니다.
+        동선에서 물건을 고르면 연식·실거래 브리핑이 표시됩니다.
       </p>
 
       {!hasRiskFlags && activeCase ? (
@@ -31,8 +44,11 @@ export default function FieldPrepPage() {
         </div>
       ) : null}
 
-      <FieldChecklistSection />
-      <FieldRouteSection />
+      <FieldRouteSection onFocusCase={focusCase} />
+      <FieldBriefingSection
+        caseFile={briefingCase}
+        stopOrder={briefingCase?.id === focusCaseId ? focusOrder : null}
+      />
     </>
   );
 }

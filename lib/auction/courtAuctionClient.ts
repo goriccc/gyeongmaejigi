@@ -12,6 +12,11 @@ import {
   stripHtml,
 } from '@/lib/auction/caseNumberFormat';
 import { parseExclusiveAreaM2 } from '@/lib/auction/exclusiveArea';
+import { extractNotifyMinPrices } from '@/lib/auction/minimumSalePrice';
+import {
+  parsePropertyDetailPricing,
+  type PropertyDetailPricing,
+} from '@/lib/auction/propertyDetailPricing';
 
 const BASE_URL = 'https://www.courtauction.go.kr';
 const USER_AGENT =
@@ -124,6 +129,7 @@ function parsePropertyRow(row: Record<string, unknown>) {
     failedBidCount,
     auctionRound: parseAuctionRound(row),
     resultCode: nullIfBlank(row.mulStatcd ?? row.rsltCd),
+    notifyMinPrices: extractNotifyMinPrices(row),
     exclusiveAreaM2:
       parseExclusiveAreaM2([
         { minArea: row.minArea, maxArea: row.maxArea, objctArDts: row.objctArDts },
@@ -132,35 +138,7 @@ function parsePropertyRow(row: Record<string, unknown>) {
 }
 
 function parseExclusiveAreaFromDetail(data: Record<string, unknown>): number | null {
-  const result = data.dma_result as Record<string, unknown> | undefined;
-  if (!result) return null;
-
-  const objects = Array.isArray(result.gdsDspslObjctLst)
-    ? (result.gdsDspslObjctLst as Array<Record<string, unknown>>)
-    : [];
-  const buildingDetails = Array.isArray(result.bldSdtrDtlLstAll)
-    ? (result.bldSdtrDtlLstAll as Array<Array<Record<string, unknown>> | Record<string, unknown>>)
-    : [];
-
-  const sources: Array<Record<string, unknown>> = [];
-  for (const obj of objects) {
-    sources.push({
-      pjbBuldList: obj.pjbBuldList,
-      objctArDts: obj.objctArDts,
-      rletDvsDts: obj.rletDvsDts,
-    });
-  }
-  for (const entry of buildingDetails) {
-    const rows = Array.isArray(entry) ? entry : [entry];
-    for (const row of rows) {
-      sources.push({
-        rletDvsDts: row.rletDvsDts,
-        bldSdtrDtlDts: row.bldSdtrDtlDts,
-      });
-    }
-  }
-
-  return parseExclusiveAreaM2(sources);
+  return parsePropertyDetailPricing(data)?.exclusiveAreaM2 ?? null;
 }
 
 class CourtAuctionClient {
@@ -355,11 +333,11 @@ class CourtAuctionClient {
     return rows.map((row) => parsePropertyRow(row));
   }
 
-  private async fetchExclusiveAreaFromDetail(
+  private async fetchPropertyDetail(
     courtCode: string,
     caseNumber: string,
     dspslGdsSeq: string,
-  ): Promise<number | undefined> {
+  ): Promise<PropertyDetailPricing | null> {
     try {
       const raw = await this.postJson<{ data?: Record<string, unknown> }>(
         'propertyDetail',
@@ -374,11 +352,123 @@ class CourtAuctionClient {
         },
         { 'SC-Pgm-Id': 'PGJ15BM01' },
       );
-      const area = parseExclusiveAreaFromDetail(raw.data ?? {});
-      return area ?? undefined;
+      return parsePropertyDetailPricing(raw.data ?? {});
     } catch {
-      return undefined;
+      return null;
     }
+  }
+
+  private async fetchExclusiveAreaFromDetail(
+    courtCode: string,
+    caseNumber: string,
+    dspslGdsSeq: string,
+  ): Promise<number | undefined> {
+    const detail = await this.fetchPropertyDetail(courtCode, caseNumber, dspslGdsSeq);
+    return detail?.exclusiveAreaM2;
+  }
+
+  private applyDetailPricing<T extends {
+    appraisedPrice?: number | null;
+    saleDate?: string | null;
+    failedBidCount?: number | null;
+    auctionRound?: number | null;
+    minimumSalePrice?: number | null;
+    depositRate?: number | null;
+    depositAmount?: number | null;
+    exclusiveAreaM2?: number | null;
+  }>(item: T, detail: PropertyDetailPricing): T {
+    return {
+      ...item,
+      appraisedPrice: detail.appraisedPrice ?? item.appraisedPrice,
+      saleDate: detail.saleDate ?? item.saleDate,
+      failedBidCount: detail.failedBidCount ?? item.failedBidCount,
+      auctionRound: detail.auctionRound ?? item.auctionRound,
+      minimumSalePrice: detail.minimumSalePrice ?? item.minimumSalePrice,
+      depositRate: detail.depositRate ?? item.depositRate,
+      depositAmount: detail.depositAmount ?? item.depositAmount,
+      exclusiveAreaM2: detail.exclusiveAreaM2 ?? item.exclusiveAreaM2,
+    };
+  }
+
+  private mergeDetailScheduleRow(
+    schedule: ReturnType<typeof parseScheduleRow>[],
+    propertyNumber: number,
+    detail: PropertyDetailPricing,
+  ) {
+    if (!detail.saleDate) return schedule;
+    const idx = schedule.findIndex(
+      (row) =>
+        row.propertyNumber === propertyNumber && row.saleDate === detail.saleDate,
+    );
+    const patch = {
+      propertyNumber,
+      saleDate: detail.saleDate,
+      appraisedPrice: detail.appraisedPrice ?? null,
+      minimumSalePrice: detail.minimumSalePrice ?? null,
+      depositRate: detail.depositRate ?? null,
+      depositAmount: detail.depositAmount ?? null,
+      failedBidCount: detail.failedBidCount ?? null,
+      auctionRound: detail.auctionRound,
+      resultCode: null,
+      exclusiveAreaM2: detail.exclusiveAreaM2,
+    };
+    if (idx >= 0) {
+      const next = [...schedule];
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    }
+    return [...schedule, patch];
+  }
+
+  private async enrichItemsWithDetailPricing(
+    courtCode: string,
+    caseNumber: string,
+    searchRows: Array<Record<string, unknown>> | null,
+    items: Array<{
+      propertyNumber?: number | null;
+      address?: string | null;
+      appraisedPrice?: number | null;
+      saleDate?: string | null;
+      failedBidCount?: number | null;
+      auctionRound?: number | null;
+      minimumSalePrice?: number | null;
+      depositRate?: number | null;
+      depositAmount?: number | null;
+      exclusiveAreaM2?: number | null;
+      notifyMinPrices?: number[];
+    }>,
+    schedule: ReturnType<typeof parseScheduleRow>[],
+  ) {
+    const rows = searchRows ?? [];
+    let nextItems = items;
+    let nextSchedule = schedule;
+
+    for (let i = 0; i < nextItems.length; i++) {
+      const item = nextItems[i];
+      const seq = item.propertyNumber ?? i + 1;
+      const row = this.pickSearchRow(rows, seq);
+      const detailCourt = nullIfBlank(row?.boCd) ?? courtCode;
+      const detailCase = nullIfBlank(row?.srnSaNo) ?? caseNumber;
+      const dspslGdsSeq = row?.maemulSer ?? row?.dspslGdsSeq ?? seq;
+
+      const detail = await this.fetchPropertyDetail(
+        detailCourt,
+        detailCase,
+        String(dspslGdsSeq),
+      );
+      if (!detail) continue;
+
+      nextItems = nextItems.map((cur, index) =>
+        index === i ? this.applyDetailPricing(cur, detail) : cur,
+      );
+      nextSchedule = this.mergeDetailScheduleRow(
+        nextSchedule,
+        seq,
+        detail,
+      );
+    }
+
+    return { items: nextItems, schedule: nextSchedule };
   }
 
   private pickSearchRow(
@@ -522,6 +612,7 @@ class CourtAuctionClient {
             auctionRound: row.auctionRound,
             resultCode: row.resultCode,
             exclusiveAreaM2: row.exclusiveAreaM2,
+            notifyMinPrices: row.notifyMinPrices,
           })),
         ];
 
@@ -537,6 +628,7 @@ class CourtAuctionClient {
             depositRate: row.depositRate,
             depositAmount: row.depositAmount,
             exclusiveAreaM2: row.exclusiveAreaM2,
+            notifyMinPrices: row.notifyMinPrices,
           }));
         } else {
           items = items.map((item, index) => {
@@ -560,12 +652,27 @@ class CourtAuctionClient {
               depositRate: match.depositRate ?? item.depositRate,
               depositAmount: match.depositAmount ?? item.depositAmount,
               exclusiveAreaM2: match.exclusiveAreaM2 ?? item.exclusiveAreaM2,
+              notifyMinPrices: match.notifyMinPrices ?? item.notifyMinPrices,
             };
           });
         }
       }
     } catch {
       // 물건 검색 fallback 실패는 무시
+    }
+
+    try {
+      const enriched = await this.enrichItemsWithDetailPricing(
+        courtCode,
+        csNo,
+        searchRows,
+        items,
+        schedule,
+      );
+      items = enriched.items;
+      schedule = enriched.schedule;
+    } catch {
+      // 물건상세 가격 조회 실패는 사건 생성을 막지 않음
     }
 
     let exclusiveAreaM2: number | undefined;

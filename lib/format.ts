@@ -55,3 +55,25 @@ export function fmtWonExactLead(
 export function formatComma(n: number): string {
   return Math.round(n).toLocaleString('ko-KR');
 }
+
+/** 1평 = 3.305785㎡ (국토교통부 고시) */
+export const M2_PER_PYEONG = 3.305785;
+
+export function m2ToPyeong(m2: number): number {
+  if (!Number.isFinite(m2) || m2 <= 0) return 0;
+  return m2 / M2_PER_PYEONG;
+}
+
+/** 전용면적 — ㎡와 평(소수 2자리) */
+export function formatExclusiveAreaM2(m2: number): string {
+  const pyeong = m2ToPyeong(m2);
+  return `${m2} ㎡ (${pyeong.toFixed(2)}평)`;
+}
+
+/** 순번을 ①②③ 원형 숫자로. 1–20은 유니코드, 그 이상은 (21) 형식 */
+export function formatCircledNumber(n: number): string {
+  const order = Math.floor(n);
+  if (!Number.isFinite(order) || order < 1) return '';
+  if (order <= 20) return String.fromCharCode(0x245f + order);
+  return `(${order})`;
+}

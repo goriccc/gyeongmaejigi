@@ -177,11 +177,6 @@ export function getNextAction(c: CaseFile): CaseNextAction {
     return { href: '/c', label: '임장 준비' };
   }
   if (c.stage === 'C') {
-    const total = c.checklist.length;
-    const done = c.checklist.filter((i) => i.checked).length;
-    if (total > 0 && done < total) {
-      return { href: '/c', label: `임장 체크 ${done}/${total}` };
-    }
     if (!c.bidCalcInputs) {
       return { href: '/d', label: '입찰가 계산' };
     }

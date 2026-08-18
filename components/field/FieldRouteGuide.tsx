@@ -97,6 +97,20 @@ export function FieldRouteGuide({
               </div>
             </div>
             {leg.items.length > 0 ? (
+              mode === 'car' ? (
+                <p className="field-route-guide-inline">
+                  {leg.items.map((item, itemIndex) => (
+                    <span key={`${item.label}-${itemIndex}`}>
+                      {itemIndex > 0 ? (
+                        <span className="field-route-guide-inline-sep" aria-hidden="true">
+                          →
+                        </span>
+                      ) : null}
+                      <span className="field-route-guide-label">{item.label}</span>
+                    </span>
+                  ))}
+                </p>
+              ) : (
               <ol className="field-route-guide-list">
                 {leg.items.map((item, itemIndex) => (
                   <li className="field-route-guide-item" key={`${item.label}-${itemIndex}`}>
@@ -107,6 +121,7 @@ export function FieldRouteGuide({
                   </li>
                 ))}
               </ol>
+              )
             ) : (
               <p className="s-note field-route-guide-empty">안내 정보 없음</p>
             )}
