@@ -37,10 +37,10 @@ function pickCurrentMinimumFromDxdyList(
       const ymd = formatYmd(row.dxdyYmd);
       const min = parseAmount(row.tsLwsDspslPrc);
       const rslt = nullIfBlank(row.auctnDxdyRsltCd);
-      return ymd >= today && min != null && min > 0 && !rslt;
+      return ymd != null && ymd >= today && min != null && min > 0 && !rslt;
     })
     .sort((a, b) =>
-      formatYmd(a.dxdyYmd).localeCompare(formatYmd(b.dxdyYmd)),
+      (formatYmd(a.dxdyYmd) ?? '').localeCompare(formatYmd(b.dxdyYmd) ?? ''),
     );
 
   const fromOpen = parseAmount(open[0]?.tsLwsDspslPrc);
@@ -96,7 +96,7 @@ export function parsePropertyDetailPricing(
     ? (result.gdsDspslDxdyLst as Array<Record<string, unknown>>)
     : [];
 
-  let minimumSalePrice =
+  const minimumSalePrice =
     (saleDate
       ? pickCurrentMinimumFromDxdyList(dxdyList, saleDate)
       : undefined) ??

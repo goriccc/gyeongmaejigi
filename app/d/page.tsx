@@ -302,7 +302,7 @@ export default function BidCalcPage() {
   const entryInputs = useMemo((): EntryMatchInputs | null => {
     if (activeCase?.entryMatchInputs) return activeCase.entryMatchInputs;
     return loadEntryProfile()?.inputs ?? null;
-  }, [activeCase?.entryMatchInputs, activeCase?.id]);
+  }, [activeCase?.entryMatchInputs]);
 
   const entryProfileConfigured = entryInputs != null;
 

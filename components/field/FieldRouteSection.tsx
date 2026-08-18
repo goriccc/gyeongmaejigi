@@ -226,7 +226,7 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
   useEffect(() => {
     const first = plan.days[dayIndex]?.stops[0]?.caseId ?? null;
     selectStop(first);
-  }, [dayIndex, plan.days]);
+  }, [dayIndex, plan.days, selectStop]);
 
   useEffect(() => {
     if (dayIndex >= plan.days.length) {

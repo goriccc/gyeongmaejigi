@@ -173,7 +173,6 @@ function VerdictBanner({ panel }: { panel: ZoneVerdictPanel }) {
 
 export function RegionEligibilityMap({
   houseCount,
-  sudogwon: _sudogwon,
   regZone,
   ltvApplied,
   taxRate,

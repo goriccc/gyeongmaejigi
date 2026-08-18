@@ -137,10 +137,6 @@ function parsePropertyRow(row: Record<string, unknown>) {
   };
 }
 
-function parseExclusiveAreaFromDetail(data: Record<string, unknown>): number | null {
-  return parsePropertyDetailPricing(data)?.exclusiveAreaM2 ?? null;
-}
-
 class CourtAuctionClient {
   private cookies = new Map<string, string>();
   private warmed = new Set<string>();
@@ -420,11 +416,8 @@ class CourtAuctionClient {
     return [...schedule, patch];
   }
 
-  private async enrichItemsWithDetailPricing(
-    courtCode: string,
-    caseNumber: string,
-    searchRows: Array<Record<string, unknown>> | null,
-    items: Array<{
+  private async enrichItemsWithDetailPricing<
+    T extends {
       propertyNumber?: number | null;
       address?: string | null;
       appraisedPrice?: number | null;
@@ -436,9 +429,14 @@ class CourtAuctionClient {
       depositAmount?: number | null;
       exclusiveAreaM2?: number | null;
       notifyMinPrices?: number[];
-    }>,
+    },
+  >(
+    courtCode: string,
+    caseNumber: string,
+    searchRows: Array<Record<string, unknown>> | null,
+    items: T[],
     schedule: ReturnType<typeof parseScheduleRow>[],
-  ) {
+  ): Promise<{ items: T[]; schedule: ReturnType<typeof parseScheduleRow>[] }> {
     const rows = searchRows ?? [];
     let nextItems = items;
     let nextSchedule = schedule;
@@ -577,6 +575,7 @@ class CourtAuctionClient {
               objctArDts: r.objctArDts,
             },
           ]) ?? undefined,
+        notifyMinPrices: undefined as number[] | undefined,
       };
     });
 
