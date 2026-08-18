@@ -411,6 +411,15 @@ label {
   letter-spacing: 0.09em;
 }
 
+.field-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--slate);
+  margin-bottom: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
 input[type='text'],
 input[type='number'],
 input[type='date'],
@@ -702,6 +711,18 @@ textarea:focus {
   margin: 16px 0 6px;
 }
 
+.task-group-label::before,
+.task-section-title-main::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 1px;
+  background: var(--brass-deep);
+  vertical-align: 0.15em;
+}
+
 .task-section-action {
   flex-shrink: 0;
 }
@@ -968,6 +989,50 @@ textarea:focus {
 
 .modal-wide {
   max-width: 560px;
+}
+
+.case-intent {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.case-intent button {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.case-intent button.is-active {
+  border-color: var(--ink);
+  background: var(--paper, #fff);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.case-goals {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.case-goals button {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.case-goals button.is-active {
+  border-color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .case-number-row {
@@ -1882,6 +1947,38 @@ textarea:focus {
   min-height: 2.6em;
 }
 
+.calc-range-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calc-range-slider-row input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.calc-range-direct {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.calc-range-direct input {
+  width: 76px;
+  padding: 6px 8px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.calc-range-direct-unit {
+  font-size: 13px;
+  color: var(--slate);
+}
+
 .range-ticks {
   display: flex;
   justify-content: space-between;
@@ -2411,6 +2508,17 @@ table.loan-table td {
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 10px;
+}
+
+.map-summary .ms-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 1px;
+  background: var(--brass-deep);
+  vertical-align: 0.15em;
 }
 
 .map-summary .ms-row {

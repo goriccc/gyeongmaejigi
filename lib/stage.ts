@@ -1,5 +1,5 @@
 import type { CaseFile, CaseStage, CaseTrack } from '@/types/case';
-import { normalizeCaseTrack } from '@/lib/caseUtils';
+import { isRegisteredPostWin, normalizeCaseTrack } from '@/lib/caseUtils';
 
 export type ChapterKey = 'dashboard' | 'A' | 'B' | 'C' | 'D' | 'F' | 'E';
 
@@ -14,6 +14,41 @@ const STAGE_ORDER: CaseStage[] = ['A', 'B', 'C', 'D', 'F', 'E', 'done'];
 
 function stageIndex(stage: CaseStage): number {
   return STAGE_ORDER.indexOf(stage);
+}
+
+function hasReverseCalcInputs(caseFile: CaseFile): boolean {
+  const saved = caseFile.bidCalcInputs;
+  return saved != null && saved.sellPrice > 0;
+}
+
+function getPostWinChapterProgress(
+  caseFile: CaseFile,
+  chapter: Exclude<ChapterKey, 'dashboard'>,
+): ChapterProgress {
+  const goals = caseFile.postWinGoals;
+  if (chapter === 'A') return '완료';
+  if (chapter === 'B') {
+    return caseFile.rightsAnalysis?.analyzedAt ? '완료' : '건너뜀';
+  }
+  if (chapter === 'C') {
+    return caseFile.fieldBriefing ? '완료' : '건너뜀';
+  }
+  if (chapter === 'D') {
+    return hasReverseCalcInputs(caseFile) ? '완료' : '건너뜀';
+  }
+  if (chapter === 'F') {
+    if (!goals?.loanCompare) return '건너뜀';
+    if (caseFile.stage === 'E' || caseFile.stage === 'done') return '완료';
+    if (caseFile.stage === 'F') return '진행중';
+    return '시작 전';
+  }
+  if (chapter === 'E') {
+    if (!goals?.eviction) return '건너뜀';
+    if (caseFile.stage === 'done') return '완료';
+    if (caseFile.stage === 'E') return '진행중';
+    return '시작 전';
+  }
+  return '해당 없음';
 }
 
 /**
@@ -53,6 +88,9 @@ export function getCaseChapterProgress(
   caseFile: CaseFile,
   chapter: Exclude<ChapterKey, 'dashboard'>,
 ): ChapterProgress {
+  if (isRegisteredPostWin(caseFile)) {
+    return getPostWinChapterProgress(caseFile, chapter);
+  }
   return getChapterProgress(
     caseFile.stage,
     chapter,

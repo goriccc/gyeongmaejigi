@@ -11,6 +11,8 @@ import { NewCaseForm } from '@/components/dashboard/NewCaseForm';
 import { BiddingCaseViewModal } from '@/components/dashboard/BiddingCaseViewModal';
 import { EvictionCaseForm } from '@/components/dashboard/EvictionCaseForm';
 import {
+  caseBadgeLabel,
+  caseBadgeTone,
   caseDisplayName,
   caseTaskMetaLine,
   daysUntilAuction,
@@ -18,7 +20,6 @@ import {
   getNextAction,
   groupCases,
   normalizeCaseTrack,
-  trackLabel,
 } from '@/lib/caseUtils';
 import type { CaseFile } from '@/types/case';
 
@@ -61,9 +62,7 @@ function TaskCard({
             {c.id === activeId ? (
               <Badge tone="mid">{ko.dashboard.active}</Badge>
             ) : null}
-            <Badge tone={normalizeCaseTrack(c) === 'eviction' ? 'mid' : 'neutral'}>
-              {trackLabel(normalizeCaseTrack(c))}
-            </Badge>
+            <Badge tone={caseBadgeTone(c)}>{caseBadgeLabel(c)}</Badge>
           </div>
           <div className="task-card-meta">
             {caseTaskMetaLine(c)}
@@ -118,7 +117,11 @@ export default function DashboardPage() {
 
   const primaryTask = useMemo(() => {
     const urgent =
-      groups.thisWeek[0] ?? groups.eviction[0] ?? groups.reviewing[0] ?? activeCase;
+      groups.thisWeek[0] ??
+      groups.postWin[0] ??
+      groups.eviction[0] ??
+      groups.reviewing[0] ??
+      activeCase;
     if (!urgent) return null;
     return { case: urgent, action: getNextAction(urgent) };
   }, [groups, activeCase]);
@@ -195,6 +198,21 @@ export default function DashboardPage() {
           <>
             <p className="task-group-label">{ko.dashboard.groupReviewing}</p>
             {groups.reviewing.map((c) => (
+              <TaskCard
+                key={c.id}
+                c={c}
+                activeId={activeId}
+                onOpen={openCase}
+                onView={setViewCase}
+                onRemove={removeCase}
+              />
+            ))}
+          </>
+        ) : null}
+        {groups.postWin.length > 0 ? (
+          <>
+            <p className="task-group-label">{ko.dashboard.groupPostWin}</p>
+            {groups.postWin.map((c) => (
               <TaskCard
                 key={c.id}
                 c={c}

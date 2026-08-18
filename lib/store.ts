@@ -65,6 +65,14 @@ export const localCaseStore: CaseStore = {
     const cases = readCases();
     const track = input.track ?? 'bidding';
     const profile = loadEntryProfile();
+    const isPostWin = input.postWinGoals != null;
+    const stage =
+      input.stage ??
+      (track === 'eviction' ? 'E' : isPostWin
+        ? input.postWinGoals?.loanCompare
+          ? 'F'
+          : 'E'
+        : 'A');
 
     const created: CaseFile = {
       id: createId(),
@@ -78,7 +86,7 @@ export const localCaseStore: CaseStore = {
       fieldBriefing: input.fieldBriefing,
       latitude: input.latitude,
       longitude: input.longitude,
-      stage: track === 'eviction' ? 'E' : 'A',
+      stage,
       track,
       appraisalValue: input.appraisalValue ?? 0,
       auctionDate: input.auctionDate ?? '',
@@ -87,10 +95,14 @@ export const localCaseStore: CaseStore = {
       minimumSalePrice: input.minimumSalePrice,
       bidDepositAmount: input.bidDepositAmount,
       clientLabel: input.clientLabel?.trim() || undefined,
-      bidOutcome: track === 'eviction' ? 'won' : 'pending',
+      bidOutcome:
+        input.bidOutcome ?? (track === 'eviction' || isPostWin ? 'won' : 'pending'),
+      postWinGoals: input.postWinGoals,
+      winningBidWon: input.winningBidWon,
+      bidCalcInputs: input.bidCalcInputs,
       riskFlags: [],
       checklist: [],
-      ...(track === 'bidding' && profile
+      ...(track === 'bidding' && profile && !isPostWin
         ? {
             entryMatchInputs: profile.inputs,
             entryMatchResult: profile.result,

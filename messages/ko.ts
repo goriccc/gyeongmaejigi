@@ -31,7 +31,8 @@ export const ko = {
     nextTask: (label: string) => `다음 할 일: ${label} →`,
     lifecycle: '활성 사건 진행',
     groupThisWeek: '이번 주 입찰',
-    groupReviewing: '검토 중',
+    groupReviewing: '입찰 준비',
+    groupPostWin: '낙찰 후',
     groupEviction: '명도 진행',
     groupArchived: '종료',
     docket: '전체 사건',
@@ -74,8 +75,26 @@ export const ko = {
     lookupLoading: '조회 중…',
     lookupLead:
       '법원을 선택하고 연도·일련번호를 입력한 뒤 Enter 또는 「정보 불러오기」를 누르세요.',
+    lookupLeadPostWin:
+      '사건번호를 알면 불러오기를 시도하세요. 매각이 끝난 물건은 진행중 검색에 안 잡힐 수 있습니다. 아는 항목만 입력하고 추가하세요.',
+    lookupMissPostWin:
+      '진행중 물건으로 찾지 못했습니다. 소재지·낙찰가는 직접 입력해 주세요.',
     lookupHint:
       '출처: 법원경매정보(courtauction.go.kr). 입찰 전 원문 공고·명세서를 반드시 확인하세요.',
+    intentLabel: '이 사건의 상태',
+    intentPreBid: '아직 입찰 전',
+    intentPostWin: '이미 낙찰받음',
+    goalsLabel: '지금 할 일',
+    goalLoan: '대출상품 비교',
+    goalEviction: '명도 코칭',
+    goalsHint: '하나 이상 선택하세요. 저장 후 해당 화면으로 이동합니다.',
+    winningBid: '낙찰가 (원)',
+    winningBidPh: '412,000,000',
+    pastDatePreBid:
+      '매각일이 지났습니다. 「이미 낙찰받음」으로 등록해 주세요.',
+    addressRequired: '소재지 또는 별칭을 입력해 주세요.',
+    goalsRequired: '대출상품 비교 또는 명도 코칭을 선택해 주세요.',
+    winningBidRequired: '대출상품 비교를 쓰려면 낙찰가를 입력해 주세요.',
     submit: '사건 생성',
     cancel: '취소',
   },
@@ -115,7 +134,7 @@ export const ko = {
     effectiveSellPrice: '실질 매도가',
     buildingVatDirect: '금액 직접 입력',
     buildingVatStandards: '기준시가로 계산',
-    buildingVatDirectLabel: '건물분 부가세 (만원)',
+    buildingVatDirectLabel: '건물분 부가세 (원)',
     buildingVatDetailOpen: '기준시가 입력 펼치기',
     buildingVatDetailClose: '기준시가 입력 접기',
     landAreaLabel: '토지면적 (㎡)',
@@ -159,6 +178,25 @@ export const ko = {
     farmTaxExempt: '면제',
     farmTaxExemptNote: '전용 85㎡ 이하 — 면제',
   },
+  loanCompare: {
+    basisTitle: '역산 기준 (제4장)',
+    basisNote: '제4장 입찰가와 같은 값입니다. 입찰가가 바뀌면 이 화면도 따라갑니다.',
+    editInD: '제4장에서 수정 →',
+    needD: '제4장에서 입찰가·매도가를 먼저 계산해 주세요.',
+    tableLocked: '입찰가 계산이 완료되면 비교표가 활성화됩니다.',
+    postWinTitle: '낙찰가 기준',
+    postWinNote:
+      '제4장 역산 없이 실제 낙찰가로 비교합니다. 예상 매도가를 넣으면 세후 수익이 계산됩니다.',
+    postWinLead:
+      '낙찰가와 상담사 조건을 입력하면 LTV·금리·중도상환 기준으로 비교합니다.',
+    winningBid: '낙찰가',
+    expectedSell: '예상 매도가',
+    months: '보유기간',
+    noSellNote:
+      '예상 매도가가 없어 낙찰가 기준 대출비용만 반영한 세후 수익입니다.',
+    evictionOnly:
+      '이 사건은 명도 코칭만 선택한 사건입니다.',
+  },
   bidOutcome: {
     title: '입찰 결과',
     won: '낙찰',
@@ -176,7 +214,7 @@ export const ko = {
   },
   fieldBriefing: {
     title: '물건 브리핑',
-    lead: '연식·실거래는 공공데이터로 조회합니다.',
+    lead: '연식·규모는 입찰사건 추가 시 저장한 값을 표시합니다.',
     refresh: '다시 조회',
     tradesTitle: '실거래 (같은 단지·유사 면적)',
     loadMore: (n: number) => `더 보기 (${n}건)`,

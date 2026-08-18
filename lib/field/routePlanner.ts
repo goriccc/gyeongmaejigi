@@ -35,6 +35,7 @@ export function filterRoutableCases(cases: CaseFile[]): {
 
   for (const c of cases) {
     if (normalizeCaseTrack(c) !== 'bidding' || isArchivedCase(c)) continue;
+    if (c.bidOutcome === 'won') continue;
     if (!c.address?.trim() && !c.auctionDate) continue;
     if (caseHasGeo(c)) routable.push(c);
     else missingGeo.push(c);

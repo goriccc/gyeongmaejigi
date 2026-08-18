@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FieldBriefingSection } from '@/components/field/FieldBriefingSection';
 import { FieldRouteSection } from '@/components/field/FieldRouteSection';
 import { useCases } from '@/lib/hooks/useCases';
@@ -18,11 +18,14 @@ export default function FieldPrepPage() {
     return cases.find((c) => c.id === id) ?? activeCase;
   }, [cases, focusCaseId, activeId, activeCase]);
 
-  function focusCase(id: string, order?: number) {
-    setFocusCaseId(id);
-    setFocusOrder(order && order > 0 ? order : null);
-    setActiveId(id);
-  }
+  const focusCase = useCallback(
+    (id: string, order?: number) => {
+      setFocusCaseId(id);
+      setFocusOrder(order && order > 0 ? order : null);
+      setActiveId(id);
+    },
+    [setActiveId],
+  );
 
   return (
     <>

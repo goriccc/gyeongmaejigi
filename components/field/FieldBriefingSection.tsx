@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { caseDisplayName, caseTaskMetaLine, formatCaseNumberWithProperty } from '@/lib/caseUtils';
 import { briefingNeedsRefetch } from '@/lib/field/briefingCache';
@@ -13,7 +13,7 @@ import {
 import { formatExclusiveAreaM2 } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
 import { ko } from '@/messages/ko';
-import type { CaseFile, FieldBriefingSnapshot } from '@/types/case';
+import type { CaseFile } from '@/types/case';
 
 const INITIAL_TRADE_COUNT = 5;
 
@@ -34,56 +34,42 @@ type Props = {
 
 export function FieldBriefingSection({ caseFile, stopOrder }: Props) {
   const { updateCase } = useCases();
-  const [briefing, setBriefing] = useState<FieldBriefingSnapshot | null>(
-    caseFile?.fieldBriefing ?? null,
-  );
   const [visibleCount, setVisibleCount] = useState(INITIAL_TRADE_COUNT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setBriefing(caseFile?.fieldBriefing ?? null);
+    abortRef.current?.abort();
     setVisibleCount(INITIAL_TRADE_COUNT);
     setError('');
-  }, [caseFile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    setLoading(false);
+  }, [caseFile?.id]);
 
-  const fetchBriefing = useCallback(
-    async (force = false, signal?: AbortSignal) => {
-      if (!caseFile) return;
-      if (!force && caseFile.fieldBriefing && !briefingNeedsRefetch(caseFile.fieldBriefing)) {
-        setBriefing(caseFile.fieldBriefing);
-        return;
-      }
-      setLoading(true);
-      setError('');
-      try {
-        const next = await fetchFieldBriefingClient(caseFile, signal);
-        if (signal?.aborted) return;
-        setBriefing(next);
-        if (briefingNeedsRefetch(next)) {
-          updateCase(caseFile.id, { fieldBriefing: undefined });
-        } else {
-          updateCase(caseFile.id, { fieldBriefing: next });
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : '브리핑 조회 실패');
-      } finally {
-        if (!signal?.aborted) setLoading(false);
-      }
-    },
-    [caseFile, updateCase],
-  );
+  const briefing = caseFile?.fieldBriefing ?? null;
 
-  useEffect(() => {
+  async function refresh() {
     if (!caseFile?.address?.trim()) return;
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    void fetchBriefing(false, ac.signal);
-    return () => ac.abort();
-  }, [caseFile?.id, caseFile?.address, fetchBriefing]);
+    setLoading(true);
+    setError('');
+    try {
+      const next = await fetchFieldBriefingClient(caseFile, ac.signal);
+      if (ac.signal.aborted) return;
+      if (briefingNeedsRefetch(next)) {
+        updateCase(caseFile.id, { fieldBriefing: undefined });
+      } else {
+        updateCase(caseFile.id, { fieldBriefing: next });
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setError(err instanceof Error ? err.message : '브리핑 조회 실패');
+    } finally {
+      if (!ac.signal.aborted) setLoading(false);
+    }
+  }
 
   const trades = briefing?.trades ?? [];
   const shown = trades.slice(0, visibleCount);
@@ -131,12 +117,7 @@ export function FieldBriefingSection({ caseFile, stopOrder }: Props) {
           type="button"
           className="btn-text"
           disabled={loading || !caseFile.address}
-          onClick={() => {
-            abortRef.current?.abort();
-            const ac = new AbortController();
-            abortRef.current = ac;
-            void fetchBriefing(true, ac.signal);
-          }}
+          onClick={() => void refresh()}
         >
           {loading ? ko.common.loading : ko.fieldBriefing.refresh}
         </button>

@@ -1,4 +1,4 @@
-import type { CaseFile, CaseTrack } from '@/types/case';
+import type { CaseFile, CaseTrack, PostWinGoals } from '@/types/case';
 import { resolveBidDeposit } from '@/lib/auction/bidDeposit';
 import { formatAuctionRoundLabel } from '@/lib/auction/auctionRound';
 
@@ -10,6 +10,7 @@ export type CaseNextAction = {
 export type CaseGroups = {
   thisWeek: CaseFile[];
   reviewing: CaseFile[];
+  postWin: CaseFile[];
   eviction: CaseFile[];
   archived: CaseFile[];
 };
@@ -25,10 +26,37 @@ export function isEvictionCase(c: CaseFile): boolean {
   return track === 'eviction' || c.stage === 'E' || c.stage === 'done';
 }
 
+export function isRegisteredPostWin(c: CaseFile): boolean {
+  return normalizeCaseTrack(c) === 'bidding' && c.postWinGoals != null;
+}
+
+export function isPostWinCase(c: CaseFile): boolean {
+  return (
+    normalizeCaseTrack(c) === 'bidding' &&
+    c.bidOutcome === 'won' &&
+    c.stage !== 'done'
+  );
+}
+
+export function isAuctionDatePast(iso: string): boolean {
+  const dday = daysUntilAuction(iso);
+  return dday != null && dday < 0;
+}
+
+export function postWinLandingHref(goals: PostWinGoals): string {
+  return goals.loanCompare ? '/f' : '/e';
+}
+
 export function isArchivedCase(c: CaseFile): boolean {
   if (c.stage === 'done') return true;
   if (normalizeCaseTrack(c) === 'bidding') {
-    return c.bidOutcome === 'lost' || c.bidOutcome === 'skipped';
+    if (c.bidOutcome === 'lost' || c.bidOutcome === 'skipped') return true;
+    if (
+      (c.bidOutcome === 'pending' || !c.bidOutcome) &&
+      isAuctionDatePast(c.auctionDate)
+    ) {
+      return true;
+    }
   }
   return false;
 }
@@ -57,6 +85,31 @@ export function formatAuctionDateShort(iso: string): string {
 
 export function trackLabel(track: CaseTrack): string {
   return track === 'eviction' ? '명도' : '입찰 준비';
+}
+
+export function caseBadgeLabel(c: CaseFile): string {
+  if (normalizeCaseTrack(c) === 'eviction') return '명도';
+  if (c.stage === 'done') return '완료';
+  if (c.bidOutcome === 'lost') return '유찰';
+  if (c.bidOutcome === 'skipped') return '입찰 안 함';
+  if (c.bidOutcome === 'won') {
+    const g = c.postWinGoals;
+    if (g?.loanCompare && g.eviction) return '낙찰 · 대출·명도';
+    if (g?.loanCompare) return '낙찰 · 대출';
+    if (g?.eviction) return '낙찰 · 명도';
+    return '낙찰';
+  }
+  if (isArchivedCase(c)) return '기일 경과';
+  return '입찰';
+}
+
+export function caseBadgeTone(
+  c: CaseFile,
+): 'ok' | 'warn' | 'mid' | 'neutral' {
+  if (normalizeCaseTrack(c) === 'eviction') return 'mid';
+  if (c.bidOutcome === 'won') return 'ok';
+  if (c.bidOutcome === 'lost' || isArchivedCase(c)) return 'warn';
+  return 'neutral';
 }
 
 export function caseDisplayName(c: CaseFile): string {
@@ -126,8 +179,11 @@ function caseTaskMetaStats(c: CaseFile): string[] {
     minimumSalePrice: c.minimumSalePrice,
     depositRate: c.bidDepositRate ?? 10,
   });
-  if (deposit.amount > 0) {
+  if (deposit.amount > 0 && c.bidOutcome !== 'won') {
     parts.push(`보증금 ${formatDepositAmount(deposit.amount)} (${deposit.rate}%)`);
+  }
+  if (c.winningBidWon && c.winningBidWon > 0) {
+    parts.push(formatMetaAmount('낙찰가', c.winningBidWon));
   }
   if (c.auctionDate) {
     parts.push(`매각 ${formatAuctionDateShort(c.auctionDate)}`);
@@ -159,12 +215,32 @@ function caseMetaStats(c: CaseFile): string[] {
 export function getNextAction(c: CaseFile): CaseNextAction {
   const track = normalizeCaseTrack(c);
 
-  if (track === 'eviction' || c.stage === 'E') {
+  if (c.stage === 'done') {
+    return { href: '/e', label: '명도 기록 보기' };
+  }
+
+  if (track === 'eviction') {
     return { href: '/e', label: '명도 코칭' };
   }
 
-  if (c.stage === 'done') {
-    return { href: '/e', label: '명도 기록 보기' };
+  if (c.bidOutcome === 'won') {
+    const goals = c.postWinGoals;
+    if (goals) {
+      if (goals.loanCompare && !goals.eviction) {
+        return { href: '/f', label: '대출상품 비교' };
+      }
+      if (!goals.loanCompare && goals.eviction) {
+        return { href: '/e', label: '명도 코칭' };
+      }
+      if (c.stage === 'E') {
+        return { href: '/e', label: '명도 코칭' };
+      }
+      return { href: '/f', label: '대출상품 비교' };
+    }
+    if (c.stage === 'E') {
+      return { href: '/e', label: '명도 코칭' };
+    }
+    return { href: '/f', label: '대출상품 비교' };
   }
 
   if (!c.entryMatchResult) {
@@ -184,9 +260,6 @@ export function getNextAction(c: CaseFile): CaseNextAction {
   if (c.stage === 'D' || c.bidCalcInputs) {
     if (c.bidOutcome === 'pending' || !c.bidOutcome) {
       return { href: '/d', label: '입찰가 확인' };
-    }
-    if (c.bidOutcome === 'won' && (c.stage === 'D' || c.stage === 'F')) {
-      return { href: '/f', label: '대출상품 비교' };
     }
   }
 
@@ -219,24 +292,29 @@ export function getNextAction(c: CaseFile): CaseNextAction {
 export function groupCases(cases: CaseFile[]): CaseGroups {
   const archived: CaseFile[] = [];
   const eviction: CaseFile[] = [];
-  const biddingActive: CaseFile[] = [];
+  const postWin: CaseFile[] = [];
+  const biddingPrep: CaseFile[] = [];
 
   for (const c of cases) {
     if (isArchivedCase(c)) {
       archived.push(c);
       continue;
     }
-    if (normalizeCaseTrack(c) === 'eviction' || c.stage === 'E') {
+    if (normalizeCaseTrack(c) === 'eviction') {
       eviction.push(c);
       continue;
     }
-    biddingActive.push(c);
+    if (isPostWinCase(c)) {
+      postWin.push(c);
+      continue;
+    }
+    biddingPrep.push(c);
   }
 
   const now = Date.now();
   const weekEnd = now + 7 * MS_DAY;
 
-  const thisWeek = biddingActive
+  const thisWeek = biddingPrep
     .filter((c) => {
       const t = parseAuctionTime(c.auctionDate);
       return Number.isFinite(t) && t >= now && t <= weekEnd;
@@ -244,9 +322,11 @@ export function groupCases(cases: CaseFile[]): CaseGroups {
     .sort((a, b) => parseAuctionTime(a.auctionDate) - parseAuctionTime(b.auctionDate));
 
   const thisWeekIds = new Set(thisWeek.map((c) => c.id));
-  const reviewing = biddingActive
+  const reviewing = biddingPrep
     .filter((c) => !thisWeekIds.has(c.id))
     .sort((a, b) => parseAuctionTime(a.auctionDate) - parseAuctionTime(b.auctionDate));
+
+  postWin.sort((a, b) => parseAuctionTime(b.auctionDate) - parseAuctionTime(a.auctionDate));
 
   eviction.sort((a, b) => {
     if (a.stage === 'E' && b.stage !== 'E') return -1;
@@ -256,7 +336,7 @@ export function groupCases(cases: CaseFile[]): CaseGroups {
 
   archived.sort((a, b) => parseAuctionTime(b.auctionDate) - parseAuctionTime(a.auctionDate));
 
-  return { thisWeek, reviewing, eviction, archived };
+  return { thisWeek, reviewing, postWin, eviction, archived };
 }
 
 export function countActiveCases(cases: CaseFile[]): {
@@ -267,7 +347,7 @@ export function countActiveCases(cases: CaseFile[]): {
   let eviction = 0;
   for (const c of cases) {
     if (isArchivedCase(c)) continue;
-    if (normalizeCaseTrack(c) === 'eviction' || c.stage === 'E') {
+    if (normalizeCaseTrack(c) === 'eviction') {
       eviction += 1;
     } else {
       bidding += 1;

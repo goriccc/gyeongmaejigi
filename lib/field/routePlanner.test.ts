@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildFieldRoutePlan,
+  filterRoutableCases,
   haversineM,
   optimizeVisitOrder,
   packCasesByDailyCount,
@@ -32,9 +33,9 @@ function mockCase(
 describe('routePlanner', () => {
   it('packCasesByDailyCount splits by deadline order', () => {
     const cases = [
-      mockCase('a', 37.5, 127.0, '2026-08-01'),
-      mockCase('b', 37.51, 127.01, '2026-08-05'),
-      mockCase('c', 37.52, 127.02, '2026-08-10'),
+      mockCase('a', 37.5, 127.0, '2026-09-01'),
+      mockCase('b', 37.51, 127.01, '2026-09-05'),
+      mockCase('c', 37.52, 127.02, '2026-09-10'),
     ];
     const packed = packCasesByDailyCount(cases, 2);
     expect(packed).toHaveLength(2);
@@ -70,8 +71,8 @@ describe('routePlanner', () => {
 
   it('buildFieldRoutePlan groups all routable cases', () => {
     const cases = [
-      mockCase('a', 37.5, 127.0, '2026-08-01'),
-      mockCase('b', 37.51, 127.01, '2026-08-05'),
+      mockCase('a', 37.5, 127.0, '2026-09-01'),
+      mockCase('b', 37.51, 127.01, '2026-09-05'),
     ];
     const plan = buildFieldRoutePlan(cases, 3);
     expect(plan.days).toHaveLength(1);
@@ -84,5 +85,13 @@ describe('routePlanner', () => {
       { lat: 37.5172, lng: 127.0473 },
     );
     expect(d).toBeGreaterThan(5000);
+  });
+
+  it('낙찰 사건은 임장 동선에서 제외한다', () => {
+    const won = mockCase('won', 37.5, 127.0, '2026-08-01');
+    won.bidOutcome = 'won';
+    const prep = mockCase('prep', 37.51, 127.01, '2026-09-10');
+    const { routable } = filterRoutableCases([won, prep]);
+    expect(routable.map((c) => c.id)).toEqual(['prep']);
   });
 });

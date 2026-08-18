@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ko } from '@/messages/ko';
 import { useCases } from '@/lib/hooks/useCases';
 import { parseNumberInput, formatComma } from '@/lib/format';
@@ -14,10 +15,14 @@ import {
   resolveBidDeposit,
   type BidDepositRate,
 } from '@/lib/auction/bidDeposit';
+import { daysUntilAuction, postWinLandingHref } from '@/lib/caseUtils';
+import { stubBidCalcFromWinningBid } from '@/lib/calc/bidFromCase';
 import { briefingNeedsRefetch } from '@/lib/field/briefingCache';
 import { fetchFieldBriefingClient } from '@/lib/field/fetchFieldBriefingClient';
 import { BiddingCaseDetailsFields } from '@/components/dashboard/BiddingCaseDetailsFields';
-import type { FieldBriefingSnapshot } from '@/types/case';
+import type { FieldBriefingSnapshot, PostWinGoals } from '@/types/case';
+
+type CaseIntent = 'pre-bid' | 'post-win';
 
 type CourtOption = { code: string; label: string };
 
@@ -46,6 +51,12 @@ type Props = {
 
 export function NewCaseForm({ onClose }: Props) {
   const { createCase } = useCases();
+  const router = useRouter();
+  const [intent, setIntent] = useState<CaseIntent>('pre-bid');
+  const [goalLoan, setGoalLoan] = useState(true);
+  const [goalEviction, setGoalEviction] = useState(true);
+  const [winningBid, setWinningBid] = useState('');
+  const [lookupNotice, setLookupNotice] = useState('');
   const [courts, setCourts] = useState<CourtOption[]>([]);
   const [courtsError, setCourtsError] = useState('');
   const [courtCode, setCourtCode] = useState('');
@@ -209,8 +220,14 @@ export function NewCaseForm({ onClose }: Props) {
       });
       const data = await readJsonSafe<LookupResult>(res);
       if (!res.ok || !data.found) {
+        if (intent === 'post-win') {
+          setLookupNotice(ko.caseForm.lookupMissPostWin);
+          return;
+        }
         throw new Error(data.error || '사건 정보를 불러오지 못했습니다.');
       }
+
+      setLookupNotice('');
 
       setAddress(data.address ?? '');
       applyParsedCaseNumber(data.caseNumber?.trim() || fullCaseNumber);
@@ -270,6 +287,10 @@ export function NewCaseForm({ onClose }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (intent === 'post-win') {
+      submitPostWin();
+      return;
+    }
     if (!courtCode || !fullCaseNumber) {
       setError('법원과 사건번호를 입력한 뒤 정보 불러오기를 실행해 주세요.');
       return;
@@ -280,6 +301,11 @@ export function NewCaseForm({ onClose }: Props) {
     }
     if (!auctionDate) {
       setError('매각기일을 입력해 주세요.');
+      return;
+    }
+    const dday = daysUntilAuction(auctionDate);
+    if (dday != null && dday < 0) {
+      setError(ko.caseForm.pastDatePreBid);
       return;
     }
     const value = parseNumberInput(appraisal);
@@ -314,11 +340,125 @@ export function NewCaseForm({ onClose }: Props) {
     onClose();
   }
 
+  function submitPostWin() {
+    setError('');
+    if (!goalLoan && !goalEviction) {
+      setError(ko.caseForm.goalsRequired);
+      return;
+    }
+    const name = address.trim();
+    if (!name) {
+      setError(ko.caseForm.addressRequired);
+      return;
+    }
+    const winningBidWon = parseNumberInput(winningBid);
+    if (goalLoan && !(winningBidWon > 0)) {
+      setError(ko.caseForm.winningBidRequired);
+      return;
+    }
+    const goals: PostWinGoals = {
+      loanCompare: goalLoan,
+      eviction: goalEviction,
+    };
+    const appraisalValue = parseNumberInput(appraisal);
+    const minPrice = parseNumberInput(minSalePrice);
+
+    createCase({
+      name,
+      track: 'bidding',
+      courtCode: courtCode || undefined,
+      courtName: courtName || undefined,
+      caseNumber: fullCaseNumber || undefined,
+      propertyNumber: parsedPropertyNumber,
+      address: name,
+      latitude,
+      longitude,
+      appraisalValue: appraisalValue > 0 ? appraisalValue : 0,
+      auctionDate: auctionDate || undefined,
+      auctionRound,
+      minimumSalePrice: minPrice > 0 ? minPrice : minimumSalePrice,
+      bidDepositRate: bidDeposit.rate,
+      bidDepositAmount: bidDeposit.amount > 0 ? bidDeposit.amount : undefined,
+      exclusiveAreaM2,
+      fieldBriefing:
+        fieldBriefing && !briefingNeedsRefetch(fieldBriefing)
+          ? fieldBriefing
+          : undefined,
+      bidOutcome: 'won',
+      postWinGoals: goals,
+      winningBidWon: goalLoan ? winningBidWon : undefined,
+      bidCalcInputs:
+        goalLoan && winningBidWon > 0
+          ? stubBidCalcFromWinningBid(winningBidWon)
+          : undefined,
+      stage: goalLoan ? 'F' : 'E',
+    });
+    onClose();
+    router.push(postWinLandingHref(goals));
+  }
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal modal-wide">
         <h3>{ko.caseForm.title}</h3>
         <form onSubmit={handleSubmit}>
+          <div className="field">
+            <span className="field-label">{ko.caseForm.intentLabel}</span>
+            <div className="case-intent" role="group" aria-label={ko.caseForm.intentLabel}>
+              <button
+                type="button"
+                className={intent === 'pre-bid' ? 'is-active' : undefined}
+                onClick={() => {
+                  setIntent('pre-bid');
+                  setLookupNotice('');
+                  setError('');
+                }}
+              >
+                {ko.caseForm.intentPreBid}
+              </button>
+              <button
+                type="button"
+                className={intent === 'post-win' ? 'is-active' : undefined}
+                onClick={() => {
+                  setIntent('post-win');
+                  setError('');
+                }}
+              >
+                {ko.caseForm.intentPostWin}
+              </button>
+            </div>
+          </div>
+
+          {intent === 'post-win' ? (
+            <div className="field">
+              <span className="field-label">{ko.caseForm.goalsLabel}</span>
+              <div className="case-goals" role="group" aria-label={ko.caseForm.goalsLabel}>
+                <button
+                  type="button"
+                  className={goalLoan ? 'is-active' : undefined}
+                  aria-pressed={goalLoan}
+                  onClick={() =>
+                    setGoalLoan((v) => (v && !goalEviction ? v : !v))
+                  }
+                >
+                  {ko.caseForm.goalLoan}
+                </button>
+                <button
+                  type="button"
+                  className={goalEviction ? 'is-active' : undefined}
+                  aria-pressed={goalEviction}
+                  onClick={() =>
+                    setGoalEviction((v) => (v && !goalLoan ? v : !v))
+                  }
+                >
+                  {ko.caseForm.goalEviction}
+                </button>
+              </div>
+              <p className="field-hint">{ko.caseForm.goalsHint}</p>
+              <p className="field-hint">{ko.caseForm.lookupLeadPostWin}</p>
+            </div>
+          ) : null}
+
           <div className="field">
             <label htmlFor="case-court">{ko.caseForm.court}</label>
             <select
@@ -411,7 +551,7 @@ export function NewCaseForm({ onClose }: Props) {
             </div>
           </div>
 
-          {lookedUp ? (
+          {lookedUp || intent === 'post-win' ? (
             <BiddingCaseDetailsFields
               readOnly={false}
               values={{
@@ -447,6 +587,31 @@ export function NewCaseForm({ onClose }: Props) {
             <p className="field-hint">{ko.caseForm.lookupLead}</p>
           )}
 
+          {intent === 'post-win' && goalLoan ? (
+            <div className="field">
+              <label htmlFor="case-winning-bid">{ko.caseForm.winningBid}</label>
+              <input
+                id="case-winning-bid"
+                type="text"
+                inputMode="numeric"
+                value={winningBid}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setWinningBid('');
+                    return;
+                  }
+                  setWinningBid(formatComma(parseNumberInput(raw)));
+                }}
+                placeholder={ko.caseForm.winningBidPh}
+              />
+            </div>
+          ) : null}
+
+          {lookupNotice ? (
+            <p className="field-hint">{lookupNotice}</p>
+          ) : null}
+
           {error ? (
             <p className="notice-inline" style={{ color: 'var(--seal)' }}>
               {error}
@@ -457,7 +622,9 @@ export function NewCaseForm({ onClose }: Props) {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={!lookedUp || lookupLoading}
+              disabled={
+                lookupLoading || (intent === 'pre-bid' && !lookedUp)
+              }
             >
               {ko.caseForm.submit}
             </button>

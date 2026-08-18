@@ -5,13 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ko } from '@/messages/ko';
 import { useCases } from '@/lib/hooks/useCases';
 import {
+  caseBadgeLabel,
+  caseBadgeTone,
   caseDisplayName,
   caseMetaLine,
   contextSummary,
   groupCases,
   isArchivedCase,
-  normalizeCaseTrack,
-  trackLabel,
 } from '@/lib/caseUtils';
 import { Badge } from '@/components/ui/Badge';
 
@@ -65,7 +65,7 @@ export function CaseContextBar() {
           >
             <span className="ctx-option-name">{caseDisplayName(c)}</span>
             <span className="ctx-option-meta">
-              {caseMetaLine(c) || trackLabel(normalizeCaseTrack(c))}
+              {caseMetaLine(c) || caseBadgeLabel(c)}
             </span>
           </button>
         ))}
@@ -85,8 +85,8 @@ export function CaseContextBar() {
         {activeCase ? (
           <>
             <span className="ctx-name">{caseDisplayName(activeCase)}</span>
-            <Badge tone={normalizeCaseTrack(activeCase) === 'eviction' ? 'mid' : 'neutral'}>
-              {trackLabel(normalizeCaseTrack(activeCase))}
+            <Badge tone={caseBadgeTone(activeCase)}>
+              {caseBadgeLabel(activeCase)}
             </Badge>
             <span className="ctx-meta">
               {caseMetaLine(activeCase) || contextSummary(activeCase)}
@@ -108,6 +108,7 @@ export function CaseContextBar() {
             <>
               {renderGroup(ko.dashboard.groupThisWeek, groups.thisWeek)}
               {renderGroup(ko.dashboard.groupReviewing, groups.reviewing)}
+              {renderGroup(ko.dashboard.groupPostWin, groups.postWin)}
               {renderGroup(ko.dashboard.groupEviction, groups.eviction)}
             </>
           )}

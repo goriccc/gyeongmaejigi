@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { RiskRow } from '@/components/ui/RiskRow';
 import { Badge } from '@/components/ui/Badge';
 import { Disclaimer } from '@/components/ui/Disclaimer';
-import { resolveBidLoanRate, resolveBidMargin, yieldLabelText, yieldTierClass } from '@/lib/calc/bidCalculator';
+import { resolveBidLoanRate, resolveBidMargin, yieldLabelText, yieldTierClass, DEFAULT_BID_MARGIN } from '@/lib/calc/bidCalculator';
 import { convergeBid } from '@/lib/calc/bidConverge';
 import {
   BuildingVatSection,
@@ -149,9 +149,15 @@ function conditionalManForSave(
   return out;
 }
 
-function parseManwonInput(value: string): number | undefined {
+function clampBidMarginPct(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_BID_MARGIN;
+  return Math.min(20, Math.max(3, Math.round(n * 100) / 100));
+}
+
+function parseWonInputField(value: string): number | undefined {
   if (value.trim() === '') return undefined;
-  return parseNumberInput(value);
+  const n = parseNumberInput(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 function parseAreaField(value: string): number | undefined {
@@ -163,7 +169,7 @@ function parseAreaField(value: string): number | undefined {
 
 function buildingVatSavedFromState(state: BuildingVatSectionState) {
   const exclusiveAreaM2 = parseAreaField(state.exclusiveAreaM2);
-  const buildingVatMan = parseManwonInput(state.buildingVatMan);
+  const buildingVatWon = parseWonInputField(state.buildingVatWon);
   const landAreaM2 = parseAreaField(state.landAreaM2);
   const landUnitPricePerM2 = parseNumberInput(state.landUnitPricePerM2);
   const buildingStandardPrice = parseNumberInput(state.buildingStandardPrice);
@@ -171,7 +177,9 @@ function buildingVatSavedFromState(state: BuildingVatSectionState) {
     propertySizeMode: state.propertySizeMode,
     exclusiveAreaM2,
     buildingVatCalcMode: state.buildingVatCalcMode,
-    buildingVatMan,
+    buildingVatWon,
+    buildingVatMan:
+      buildingVatWon != null ? Math.round(buildingVatWon / 10_000) : undefined,
     landAreaM2,
     landUnitPricePerM2: landUnitPricePerM2 > 0 ? landUnitPricePerM2 : undefined,
     buildingStandardPrice:
@@ -194,6 +202,9 @@ export default function BidCalcPage() {
     resolveBidLoanRate(saved?.loanRate),
   );
   const [margin, setMargin] = useState(() => resolveBidMargin(saved?.margin));
+  const [marginDraft, setMarginDraft] = useState(() =>
+    resolveBidMargin(saved?.margin).toFixed(2),
+  );
   const [conditionalWonFields, setConditionalWonFields] = useState<
     Record<ConditionalCostKey, string>
   >(() => conditionalWonFieldsFromSaved(saved));
@@ -217,7 +228,9 @@ export default function BidCalcPage() {
       setSellPrice(formatComma(s.sellPrice));
       setMonths(String(s.months));
       setLoanRate(resolveBidLoanRate(s.loanRate));
-      setMargin(resolveBidMargin(s.margin));
+      const nextMargin = resolveBidMargin(s.margin);
+      setMargin(nextMargin);
+      setMarginDraft(nextMargin.toFixed(2));
       setConditionalWonFields(conditionalWonFieldsFromSaved(s));
       setOfficialPrice(
         s.officialPrice ? formatComma(s.officialPrice) : '',
@@ -330,10 +343,7 @@ export default function BidCalcPage() {
   );
 
   const buildingVatWon = useMemo(() => {
-    const directWon =
-      buildingVatSaved.buildingVatMan != null
-        ? buildingVatSaved.buildingVatMan * 10_000
-        : undefined;
+    const directWon = buildingVatSaved.buildingVatWon;
     return resolveBuildingVatWon({
       propertySize: propertySizeClass,
       sellPrice: sellPriceWon,
@@ -479,6 +489,10 @@ export default function BidCalcPage() {
       officialPrice: officialPriceWon > 0 ? officialPriceWon : undefined,
       buildingVat: buildingVatSaved,
       exclusiveAreaM2: buildingVatSaved.exclusiveAreaM2,
+      bidPrice: bid.bidPrice,
+      effectiveSellPrice: bid.effectiveSellPrice,
+      financeFreeDetailed: bid.financeFreeDetailed,
+      housingBondBurden: housingBondCost?.customerBurden,
     }),
     [
       sellPriceWon,
@@ -490,13 +504,15 @@ export default function BidCalcPage() {
       buildingVatSaved,
       farmTaxAutoApplies,
       farmTaxWon,
+      bid.bidPrice,
+      bid.effectiveSellPrice,
+      bid.financeFreeDetailed,
+      housingBondCost?.customerBurden,
     ],
   );
 
-  useDebouncedSave(
-    savePayload,
-    500,
-    (payload) => {
+  const persistBidCalc = useCallback(
+    (payload: typeof savePayload) => {
       if (!activeCase) return;
       updateCase(activeCase.id, {
         bidCalcInputs: {
@@ -514,10 +530,15 @@ export default function BidCalcPage() {
           propertySizeMode: payload.buildingVat.propertySizeMode,
           exclusiveAreaM2: payload.buildingVat.exclusiveAreaM2,
           buildingVatCalcMode: payload.buildingVat.buildingVatCalcMode,
+          buildingVatWon: payload.buildingVat.buildingVatWon,
           buildingVatMan: payload.buildingVat.buildingVatMan,
           landAreaM2: payload.buildingVat.landAreaM2,
           landUnitPricePerM2: payload.buildingVat.landUnitPricePerM2,
           buildingStandardPrice: payload.buildingVat.buildingStandardPrice,
+          bidPrice: payload.bidPrice,
+          effectiveSellPrice: payload.effectiveSellPrice,
+          financeFreeDetailed: payload.financeFreeDetailed,
+          housingBondBurden: payload.housingBondBurden,
         },
         ...(payload.exclusiveAreaM2 != null
           ? { exclusiveAreaM2: payload.exclusiveAreaM2 }
@@ -525,9 +546,27 @@ export default function BidCalcPage() {
         stage: afterBidCalcSaved(activeCase.stage),
       });
     },
+    [activeCase, updateCase],
+  );
+
+  const savePayloadRef = useRef(savePayload);
+  savePayloadRef.current = savePayload;
+  const persistRef = useRef(persistBidCalc);
+  persistRef.current = persistBidCalc;
+
+  useDebouncedSave(
+    savePayload,
+    500,
+    (payload) => persistBidCalc(payload),
     Boolean(activeCase),
     activeCase?.id,
   );
+
+  useEffect(() => {
+    return () => {
+      persistRef.current(savePayloadRef.current);
+    };
+  }, [activeCase?.id]);
 
   function setBidOutcome(outcome: BidOutcome) {
     if (!activeCase) return;
@@ -669,18 +708,50 @@ export default function BidCalcPage() {
             <label htmlFor="marginRange">
               {ko.bidCalc.targetMarginLabel}{' '}
               <span className={`range-val ${yieldTierTone}`}>
-                {yieldLabelText(bid.netYield)} ({margin.toFixed(1)}%)
+                {yieldLabelText(bid.netYield)}
               </span>
             </label>
-            <input
-              id="marginRange"
-              type="range"
-              min={3}
-              max={20}
-              step={0.1}
-              value={margin}
-              onChange={(e) => setMargin(parseFloat(e.target.value))}
-            />
+            <div className="calc-range-slider-row">
+              <input
+                id="marginRange"
+                type="range"
+                min={3}
+                max={20}
+                step={0.01}
+                value={margin}
+                onChange={(e) => {
+                  const next = clampBidMarginPct(parseFloat(e.target.value));
+                  setMargin(next);
+                  setMarginDraft(next.toFixed(2));
+                }}
+              />
+              <label className="calc-range-direct" htmlFor="marginDirect">
+                <input
+                  id="marginDirect"
+                  type="text"
+                  inputMode="decimal"
+                  value={marginDraft}
+                  aria-label={`${ko.bidCalc.targetMarginLabel} 직접 입력`}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d.]/g, '');
+                    setMarginDraft(raw);
+                    const n = parseFloat(raw);
+                    if (Number.isFinite(n) && n >= 3 && n <= 20) {
+                      setMargin(clampBidMarginPct(n));
+                    }
+                  }}
+                  onBlur={() => {
+                    const n = parseFloat(marginDraft);
+                    const next = clampBidMarginPct(
+                      Number.isFinite(n) ? n : margin,
+                    );
+                    setMargin(next);
+                    setMarginDraft(next.toFixed(2));
+                  }}
+                />
+                <span className="calc-range-direct-unit">%</span>
+              </label>
+            </div>
             <div className="range-ticks">
               <span>저마진 수익률 12% 이하</span>
               <span>고마진 수익률 21% 초과</span>

@@ -22,7 +22,7 @@ export type BuildingVatSectionState = {
   propertySizeMode: PropertySizeMode;
   exclusiveAreaM2: string;
   buildingVatCalcMode: BuildingVatCalcMode;
-  buildingVatMan: string;
+  buildingVatWon: string;
   landAreaM2: string;
   landUnitPricePerM2: string;
   buildingStandardPrice: string;
@@ -53,6 +53,7 @@ export function buildingVatStateFromSaved(
     propertySizeMode?: PropertySizeMode;
     exclusiveAreaM2?: number;
     buildingVatCalcMode?: BuildingVatCalcMode;
+    buildingVatWon?: number;
     buildingVatMan?: number;
     landAreaM2?: number;
     landUnitPricePerM2?: number;
@@ -65,8 +66,12 @@ export function buildingVatStateFromSaved(
     propertySizeMode: saved?.propertySizeMode ?? 'auto',
     exclusiveAreaM2: area != null ? String(area) : '',
     buildingVatCalcMode: saved?.buildingVatCalcMode ?? 'direct',
-    buildingVatMan:
-      saved?.buildingVatMan != null ? String(saved.buildingVatMan) : '',
+    buildingVatWon:
+      saved?.buildingVatWon != null
+        ? formatComma(saved.buildingVatWon)
+        : saved?.buildingVatMan != null
+          ? formatComma(saved.buildingVatMan * 10_000)
+          : '',
     landAreaM2:
       saved?.landAreaM2 != null ? String(saved.landAreaM2) : '',
     landUnitPricePerM2:
@@ -252,26 +257,23 @@ export function BuildingVatSection({
 
           {state.buildingVatCalcMode === 'direct' ? (
             <div className="field">
-              <label htmlFor="buildingVatMan">
+              <label htmlFor="buildingVatWon">
                 {ko.bidCalc.buildingVatDirectLabel}
               </label>
-              <span className="manwon-field">
-                <input
-                  id="buildingVatMan"
-                  type="text"
-                  inputMode="numeric"
-                  className="loan-input manwon-input"
-                  value={state.buildingVatMan}
-                  onChange={(e) =>
-                    onChange({
-                      buildingVatMan: e.target.value.replace(/[^\d]/g, ''),
-                    })
-                  }
-                  placeholder="1752"
-                  maxLength={5}
-                />
-                <span className="manwon-unit">만원</span>
-              </span>
+              <input
+                id="buildingVatWon"
+                type="text"
+                inputMode="numeric"
+                value={state.buildingVatWon}
+                onChange={(e) => {
+                  const n = parseNumberInput(e.target.value);
+                  onChange({
+                    buildingVatWon:
+                      e.target.value === '' ? '' : formatComma(n),
+                  });
+                }}
+                placeholder="17,520,000"
+              />
             </div>
           ) : (
             <>

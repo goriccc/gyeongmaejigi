@@ -7,6 +7,12 @@ export type CaseTrack = 'bidding' | 'eviction';
 
 export type BidOutcome = 'pending' | 'won' | 'lost' | 'skipped';
 
+/** 이미 낙찰받은 사건 등록 시 할 일 */
+export type PostWinGoals = {
+  loanCompare: boolean;
+  eviction: boolean;
+};
+
 export type ChecklistItem = {
   id: string;
   label: string;
@@ -192,6 +198,10 @@ export type CaseFile = {
   clientLabel?: string;
   /** 입찰 결과 — bidding track 전용 */
   bidOutcome?: BidOutcome;
+  /** 이미 낙찰받은 사건으로 등록했을 때 할 일. 없으면 입찰 준비 경로 */
+  postWinGoals?: PostWinGoals;
+  /** 실제 낙찰가(원) — 낙찰 후 대출비교 기준 */
+  winningBidWon?: number;
   /** 법원경매정보 법원코드 (예: B000210) */
   courtCode?: string;
   courtName?: string;
@@ -236,11 +246,21 @@ export type CaseFile = {
     exclusiveAreaM2?: number;
     /** 건물분 부가세 — direct: 금액 직접, standards: 기준시가 산출 */
     buildingVatCalcMode?: 'direct' | 'standards';
-    /** 건물분 부가세 (만원) — direct 모드 */
+    /** 건물분 부가세 (원) — direct 모드 */
+    buildingVatWon?: number;
+    /** @deprecated buildingVatWon 사용. 구버전 만원 저장값 */
     buildingVatMan?: number;
     landAreaM2?: number;
     landUnitPricePerM2?: number;
     buildingStandardPrice?: number;
+    /** 제4장 역산 입찰가(원) — 제5장 대출비교가 이 값을 그대로 사용 */
+    bidPrice?: number;
+    /** 제4장 실질 매도가(원) */
+    effectiveSellPrice?: number;
+    /** 제4장 이자·중도상환 제외 상세비용(원) */
+    financeFreeDetailed?: number;
+    /** 국민주택채권 본인부담(원) */
+    housingBondBurden?: number;
   };
   loanOffers?: LoanOffer[];
   /** 모듈 E LLM 결과 */
@@ -276,4 +296,9 @@ export type CreateCaseInput = {
   clientLabel?: string;
   exclusiveAreaM2?: number;
   fieldBriefing?: FieldBriefingSnapshot;
+  stage?: CaseStage;
+  bidOutcome?: BidOutcome;
+  postWinGoals?: PostWinGoals;
+  winningBidWon?: number;
+  bidCalcInputs?: CaseFile['bidCalcInputs'];
 };

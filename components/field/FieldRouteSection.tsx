@@ -69,17 +69,9 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
     [cases, dailyCount, startPoint],
   );
 
-  const selectStop = useCallback(
-    (caseId: string | null) => {
-      setSelectedCaseId(caseId);
-      if (!caseId) return;
-      const order = plan.days[dayIndex]?.stops.find(
-        (s) => s.caseId === caseId,
-      )?.order;
-      onFocusCase?.(caseId, order);
-    },
-    [onFocusCase, plan.days, dayIndex],
-  );
+  const selectStop = useCallback((caseId: string | null) => {
+    setSelectedCaseId(caseId);
+  }, []);
 
   const activeDay: FieldRouteDay | null = plan.days[dayIndex] ?? null;
 
@@ -224,9 +216,21 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
   }, [activeDay, routeMode, fetchRoute]);
 
   useEffect(() => {
-    const first = plan.days[dayIndex]?.stops[0]?.caseId ?? null;
-    selectStop(first);
-  }, [dayIndex, plan.days, selectStop]);
+    const stops = plan.days[dayIndex]?.stops ?? [];
+    const first = stops[0]?.caseId ?? null;
+    setSelectedCaseId((prev) => {
+      if (prev && stops.some((s) => s.caseId === prev)) return prev;
+      return first;
+    });
+  }, [dayIndex, plan.days]);
+
+  useEffect(() => {
+    if (!selectedCaseId) return;
+    const order = plan.days[dayIndex]?.stops.find(
+      (s) => s.caseId === selectedCaseId,
+    )?.order;
+    onFocusCase?.(selectedCaseId, order);
+  }, [selectedCaseId, dayIndex, plan.days, onFocusCase]);
 
   useEffect(() => {
     if (dayIndex >= plan.days.length) {
@@ -417,9 +421,6 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
               >
                 <strong>{stop.name}</strong>
               </button>
-              {stop.address ? (
-                <span className="route-address">{stop.address}</span>
-              ) : null}
               <span className="route-case-meta">{stop.caseNumber}</span>
             </span>
           </span>

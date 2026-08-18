@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
 import { newLoanOfferId } from '@/data/defaultLoanOffers';
 import { WonExactAmt } from '@/components/bid/WonExactDisplay';
-import { bidResultFromSaved } from '@/lib/calc/bidFromCase';
+import { loanCompareBidFromCase } from '@/lib/calc/bidFromCase';
 import { rankLoanOffers } from '@/lib/calc/loanCompare';
-import { fmtWonExact } from '@/lib/format';
+import { formatComma, fmtWonExact, parseNumberInput } from '@/lib/format';
 import {
   createInitialLoanDrafts,
   emptyLoanRowDraft,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/loan/loanOfferDraft';
 import { useCases } from '@/lib/hooks/useCases';
 import { useDebouncedSave } from '@/lib/hooks/useDebouncedSave';
+import { isRegisteredPostWin } from '@/lib/caseUtils';
 import { afterLoanCompareSaved } from '@/lib/stage';
 import { ko } from '@/messages/ko';
 
@@ -30,6 +31,26 @@ export default function LoanComparePage() {
   const router = useRouter();
   const { activeCase, updateCase } = useCases();
   const saved = activeCase?.bidCalcInputs;
+  const postWinLoan = Boolean(
+    activeCase && isRegisteredPostWin(activeCase) && activeCase.postWinGoals?.loanCompare,
+  );
+  const evictionOnlyPostWin = Boolean(
+    activeCase && isRegisteredPostWin(activeCase) && !activeCase.postWinGoals?.loanCompare,
+  );
+
+  const [winningBidDraft, setWinningBidDraft] = useState(() =>
+    activeCase?.winningBidWon
+      ? formatComma(activeCase.winningBidWon)
+      : saved?.bidPrice
+        ? formatComma(saved.bidPrice)
+        : '',
+  );
+  const [sellPriceDraft, setSellPriceDraft] = useState(() =>
+    saved?.sellPrice && saved.sellPrice > 0 ? formatComma(saved.sellPrice) : '',
+  );
+  const [monthsDraft, setMonthsDraft] = useState(() =>
+    String(saved?.months && saved.months > 0 ? saved.months : 6),
+  );
 
   const [loanRows, setLoanRows] = useState<LoanRowDraft[]>(() =>
     activeCase?.loanOffers?.length
@@ -43,15 +64,57 @@ export default function LoanComparePage() {
     } else if (activeCase) {
       setLoanRows(createInitialLoanDrafts());
     }
+    setWinningBidDraft(
+      activeCase?.winningBidWon
+        ? formatComma(activeCase.winningBidWon)
+        : activeCase?.bidCalcInputs?.bidPrice
+          ? formatComma(activeCase.bidCalcInputs.bidPrice)
+          : '',
+    );
+    setSellPriceDraft(
+      activeCase?.bidCalcInputs?.sellPrice && activeCase.bidCalcInputs.sellPrice > 0
+        ? formatComma(activeCase.bidCalcInputs.sellPrice)
+        : '',
+    );
+    setMonthsDraft(
+      String(
+        activeCase?.bidCalcInputs?.months && activeCase.bidCalcInputs.months > 0
+          ? activeCase.bidCalcInputs.months
+          : 6,
+      ),
+    );
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const bid = useMemo(
-    () => bidResultFromSaved(saved, activeCase?.exclusiveAreaM2),
-    [saved, activeCase?.exclusiveAreaM2],
-  );
+  const postWinBasis = useMemo(() => {
+    const winningBidWon = parseNumberInput(winningBidDraft);
+    const sellPrice = parseNumberInput(sellPriceDraft);
+    const months = Math.min(24, Math.max(1, parseInt(monthsDraft, 10) || 6));
+    return {
+      winningBidWon: winningBidWon > 0 ? winningBidWon : 0,
+      sellPrice: sellPrice > 0 ? sellPrice : 0,
+      months,
+    };
+  }, [winningBidDraft, sellPriceDraft, monthsDraft]);
+
+  const bid = useMemo(() => {
+    if (postWinLoan) {
+      if (!(postWinBasis.winningBidWon > 0)) return null;
+      return {
+        bidPrice: postWinBasis.winningBidWon,
+        sellPrice: postWinBasis.sellPrice,
+        effectiveSellPrice:
+          postWinBasis.sellPrice > 0
+            ? postWinBasis.sellPrice
+            : postWinBasis.winningBidWon,
+        financeFreeDetailed: saved?.financeFreeDetailed ?? 0,
+        months: postWinBasis.months,
+      };
+    }
+    return loanCompareBidFromCase(activeCase);
+  }, [postWinLoan, postWinBasis, saved?.financeFreeDetailed, activeCase]);
 
   const rankedLoans = useMemo(() => {
-    if (!bid || !saved) return [];
+    if (!bid) return [];
     const resolved = resolveLoanRows(loanRows).map((l) => ({
       ...l,
       ltv: l.ltv / 100,
@@ -63,9 +126,9 @@ export default function LoanComparePage() {
       bid.bidPrice,
       bid.effectiveSellPrice,
       bid.financeFreeDetailed,
-      saved.months,
+      bid.months,
     );
-  }, [loanRows, bid, saved]);
+  }, [loanRows, bid]);
 
   const rowIndexById = useMemo(
     () => new Map(loanRows.map((row, index) => [row.id, index])),
@@ -86,6 +149,30 @@ export default function LoanComparePage() {
       updateCase(activeCase.id, patch);
     },
     Boolean(activeCase),
+    activeCase?.id,
+  );
+
+  useDebouncedSave(
+    postWinBasis,
+    500,
+    (payload) => {
+      if (!activeCase || !postWinLoan) return;
+      updateCase(activeCase.id, {
+        winningBidWon: payload.winningBidWon > 0 ? payload.winningBidWon : undefined,
+        bidCalcInputs: {
+          ...saved,
+          sellPrice: payload.sellPrice,
+          months: payload.months,
+          loanRate: saved?.loanRate ?? 5,
+          margin: saved?.margin ?? 10,
+          bidPrice: payload.winningBidWon,
+          effectiveSellPrice:
+            payload.sellPrice > 0 ? payload.sellPrice : payload.winningBidWon,
+          financeFreeDetailed: saved?.financeFreeDetailed ?? 0,
+        },
+      });
+    },
+    postWinLoan && Boolean(activeCase),
     activeCase?.id,
   );
 
@@ -121,28 +208,79 @@ export default function LoanComparePage() {
         <em>대출 조건</em>을 비교합니다.
       </h1>
       <p className="page-sub">
-        명함을 주고받은 대출상담사들의 LTV·금리·중도상환수수료를 입력하면
-        제4장 입찰가 역산 결과 기준 세후 수익으로 자동 정렬됩니다.
+        {postWinLoan
+          ? ko.loanCompare.postWinLead
+          : '명함을 주고받은 대출상담사들의 LTV·금리·중도상환수수료를 입력하면 제4장 입찰가 역산 결과 기준 세후 수익으로 자동 정렬됩니다.'}
       </p>
 
       {!activeCase ? (
         <div className="banner">{ko.common.noActiveCase}</div>
       ) : null}
 
-      {activeCase && !saved ? (
+      {evictionOnlyPostWin ? (
         <div className="banner">
-          제4장에서 입찰가·매도가를 먼저 계산해 주세요.{' '}
+          {ko.loanCompare.evictionOnly}{' '}
+          <Link href="/e" className="btn-text">
+            명도 코칭 →
+          </Link>
+        </div>
+      ) : null}
+
+      {activeCase && !postWinLoan && !evictionOnlyPostWin && !saved ? (
+        <div className="banner">
+          {ko.loanCompare.needD}{' '}
           <Link href="/d" className="btn-text">
             입찰가 계산 →
           </Link>
         </div>
       ) : null}
 
-      {bid && saved ? (
-        <Section
-          title="역산 기준 (제4장)"
-          note="아래 수치는 제4장 입찰가 계산 결과입니다. 변경하려면 제4장으로 돌아가세요."
-        >
+      {postWinLoan ? (
+        <Section title={ko.loanCompare.postWinTitle} note={ko.loanCompare.postWinNote}>
+          <div className="field">
+            <label htmlFor="loan-winning-bid">{ko.loanCompare.winningBid}</label>
+            <input
+              id="loan-winning-bid"
+              type="text"
+              inputMode="numeric"
+              value={winningBidDraft}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setWinningBidDraft(raw === '' ? '' : formatComma(parseNumberInput(raw)));
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="loan-expected-sell">{ko.loanCompare.expectedSell}</label>
+            <input
+              id="loan-expected-sell"
+              type="text"
+              inputMode="numeric"
+              value={sellPriceDraft}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setSellPriceDraft(raw === '' ? '' : formatComma(parseNumberInput(raw)));
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="loan-hold-months">{ko.loanCompare.months}</label>
+            <input
+              id="loan-hold-months"
+              type="text"
+              inputMode="numeric"
+              value={monthsDraft}
+              onChange={(e) =>
+                setMonthsDraft(e.target.value.replace(/[^\d]/g, '').slice(0, 2))
+              }
+            />
+          </div>
+          {postWinBasis.sellPrice <= 0 ? (
+            <p className="field-hint">{ko.loanCompare.noSellNote}</p>
+          ) : null}
+        </Section>
+      ) : bid && saved ? (
+        <Section title={ko.loanCompare.basisTitle} note={ko.loanCompare.basisNote}>
           <div className="result-row">
             <span>입찰가</span>
             <WonExactAmt amount={bid.bidPrice} />
@@ -156,7 +294,7 @@ export default function LoanComparePage() {
             <span style={{ fontFamily: 'var(--mono)' }}>{saved.months}개월</span>
           </div>
           <Link href="/d" className="btn-text" style={{ marginTop: 12 }}>
-            제4장에서 수정 →
+            {ko.loanCompare.editInD}
           </Link>
         </Section>
       ) : null}
@@ -165,8 +303,12 @@ export default function LoanComparePage() {
         title="대출상품 비교"
         note='회색 예시는 참고용 입니다. 입력을 시작하면 사라지고, 순위·수익은 입력값(미입력 칸은 예시값) 기준으로 계산됩니다.'
       >
-        {!saved ? (
-          <p className="field-hint">입찰가 계산이 완료되면 비교표가 활성화됩니다.</p>
+        {!bid ? (
+          <p className="field-hint">
+            {postWinLoan
+              ? ko.caseForm.winningBidRequired
+              : ko.loanCompare.tableLocked}
+          </p>
         ) : (
           <>
             <div className="loan-table-block">
@@ -320,7 +462,8 @@ export default function LoanComparePage() {
         )}
       </Section>
 
-      {activeCase?.bidOutcome === 'won' ? (
+      {activeCase?.bidOutcome === 'won' &&
+      activeCase.postWinGoals?.eviction !== false ? (
         <Section title="다음 단계">
           <p className="field-hint">{ko.bidOutcome.wonNote}</p>
           <div className="bid-outcome-row">
