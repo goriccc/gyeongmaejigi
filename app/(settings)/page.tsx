@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
+import { RepaymentMethodGuideModal } from '@/components/ui/RepaymentMethodGuideModal';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { Badge } from '@/components/ui/Badge';
 import { RegionEligibilityMap } from '@/components/RegionEligibilityMap';
@@ -12,6 +13,9 @@ import {
   type RegZone,
 } from '@/lib/calc/acquisitionTax';
 import { CREDIT_MAP, type CreditState } from '@/lib/calc/ltv';
+import type { StressDsrMode } from '@/lib/calc/dsr';
+import { STRESS_DSR_NOTICE } from '@/lib/calc/dsr';
+import type { DsrRepaymentMethod } from '@/lib/calc/entryMatch';
 import { fmtWon, formatComma, parseNumberInput } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
 import { useDebouncedSave } from '@/lib/hooks/useDebouncedSave';
@@ -22,6 +26,26 @@ import { ko } from '@/messages/ko';
 
 type PropType = '아파트' | '다세대' | '다가구';
 type LenderType = '1금융권' | '2금융권';
+
+const STRESS_MODE_LABEL: Record<StressDsrMode, string> = {
+  policy: '정책기본',
+  none: '스트레스 제외',
+};
+
+function normalizeStressMode(
+  mode?: string | null,
+): StressDsrMode {
+  return mode === 'none' ? 'none' : 'policy';
+}
+
+const REPAYMENT_LABEL: Record<DsrRepaymentMethod, string> = {
+  equalPrincipal: '원금균등',
+  equalPayment: '원리금균등',
+};
+
+function defaultContractRatePct(credit: CreditState): string {
+  return String(+(CREDIT_MAP[credit].rate * 100).toFixed(1));
+}
 
 const LENDER_DSR: Record<LenderType, number> = {
   '1금융권': 0.4,
@@ -163,7 +187,7 @@ export default function EntryMatchPage() {
   const initial = readInitialInputs();
 
   const [seedMoney, setSeedMoney] = useState(
-    initial?.seedMoney ? formatComma(initial.seedMoney / 10000) : '8,000',
+    initial?.seedMoney ? formatComma(initial.seedMoney / 10000) : '10,000',
   );
   const [houseCount, setHouseCount] = useState<HouseCount>(
     initial?.houseCount ?? 0,
@@ -177,7 +201,7 @@ export default function EntryMatchPage() {
   const [annualIncome, setAnnualIncome] = useState(
     initial?.annualIncome
       ? formatComma(initial.annualIncome / 10000)
-      : '5,500',
+      : '5,000',
   );
   const [lenderType, setLenderType] = useState<LenderType>(
     initial?.lenderType ?? '2금융권',
@@ -197,6 +221,24 @@ export default function EntryMatchPage() {
     initial?.firstTimeBuyer ?? false,
   );
   const [realDemand, setRealDemand] = useState(initial?.realDemand ?? false);
+  const [existingMonthlyDebt, setExistingMonthlyDebt] = useState(
+    initial?.existingAnnualDebt
+      ? formatComma(Math.round(initial.existingAnnualDebt / 12 / 10000))
+      : '',
+  );
+  const [stressMode, setStressMode] = useState<StressDsrMode>(
+    normalizeStressMode(initial?.stressMode),
+  );
+  const [contractRatePct, setContractRatePct] = useState(() =>
+    initial?.contractRate != null
+      ? String(+(initial.contractRate * 100).toFixed(2))
+      : defaultContractRatePct(initial?.creditState ?? '보통'),
+  );
+  const [dsrRepaymentMethod, setDsrRepaymentMethod] =
+    useState<DsrRepaymentMethod>(
+      initial?.dsrRepaymentMethod ?? 'equalPrincipal',
+    );
+  const [repaymentGuideOpen, setRepaymentGuideOpen] = useState(false);
 
   useEffect(() => {
     const global = loadEntryProfile();
@@ -216,8 +258,20 @@ export default function EntryMatchPage() {
     setFirstTimeBuyer(s.firstTimeBuyer ?? false);
     setRealDemand(s.realDemand ?? false);
     setAnnualIncome(
-      formatComma((s.annualIncome ?? 55_000_000) / 10000),
+      formatComma((s.annualIncome ?? 50_000_000) / 10000),
     );
+    setExistingMonthlyDebt(
+      s.existingAnnualDebt
+        ? formatComma(Math.round(s.existingAnnualDebt / 12 / 10000))
+        : '',
+    );
+    setStressMode(normalizeStressMode(s.stressMode));
+    setContractRatePct(
+      s.contractRate != null
+        ? String(+(s.contractRate * 100).toFixed(2))
+        : defaultContractRatePct(s.creditState),
+    );
+    setDsrRepaymentMethod(s.dsrRepaymentMethod ?? 'equalPrincipal');
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -239,6 +293,13 @@ export default function EntryMatchPage() {
   }, [dispositionSelectable, dispositionPlanned]);
 
   const result = useMemo(() => {
+    const existingAnnualDebt =
+      parseNumberInput(existingMonthlyDebt) * 10000 * 12;
+    const contractPct = parseFloat(contractRatePct.replace(/,/g, ''));
+    const contractRate =
+      Number.isFinite(contractPct) && contractPct > 0
+        ? contractPct / 100
+        : CREDIT_MAP[creditState].rate;
     return calcEntryMatch({
       seedMoney: parseNumberInput(seedMoney) * 10000,
       houseCount,
@@ -251,6 +312,11 @@ export default function EntryMatchPage() {
       dispositionPlanned: dispositionEffective,
       firstTimeBuyer: ftb,
       realDemand: rd,
+      existingAnnualDebt,
+      stressMode,
+      rateType: 'floating',
+      contractRate,
+      dsrRepaymentMethod,
     });
   }, [
     seedMoney,
@@ -264,6 +330,10 @@ export default function EntryMatchPage() {
     dispositionEffective,
     ftb,
     rd,
+    existingMonthlyDebt,
+    stressMode,
+    contractRatePct,
+    dsrRepaymentMethod,
   ]);
 
   const savePayload = useMemo(
@@ -280,6 +350,17 @@ export default function EntryMatchPage() {
       firstTimeBuyer: ftb,
       realDemand: rd,
       annualIncome: parseNumberInput(annualIncome) * 10000,
+      existingAnnualDebt:
+        parseNumberInput(existingMonthlyDebt) * 10000 * 12,
+      stressMode,
+      rateType: 'floating' as const,
+      contractRate: (() => {
+        const pct = parseFloat(contractRatePct.replace(/,/g, ''));
+        return Number.isFinite(pct) && pct > 0
+          ? pct / 100
+          : CREDIT_MAP[creditState].rate;
+      })(),
+      dsrRepaymentMethod,
       result,
     }),
     [
@@ -295,6 +376,10 @@ export default function EntryMatchPage() {
       ftb,
       rd,
       annualIncome,
+      existingMonthlyDebt,
+      stressMode,
+      contractRatePct,
+      dsrRepaymentMethod,
       result,
     ],
   );
@@ -317,11 +402,20 @@ export default function EntryMatchPage() {
           firstTimeBuyer: payload.firstTimeBuyer,
           realDemand: payload.realDemand,
           annualIncome: payload.annualIncome,
+          existingAnnualDebt: payload.existingAnnualDebt || undefined,
+          stressMode: payload.stressMode,
+          rateType: payload.rateType,
+          contractRate: payload.contractRate,
+          dsrRepaymentMethod: payload.dsrRepaymentMethod,
         },
         {
           bidCapacity: payload.result.bidCapacity,
           ltvApplied: payload.result.ltvApplied,
           dsrCapacity: payload.result.dsrCapacity,
+          dsrCapacityEqualPayment: payload.result.dsrCapacityEqualPayment,
+          dsrCapacityEqualPrincipal: payload.result.dsrCapacityEqualPrincipal,
+          assessmentRate: payload.result.assessmentRate,
+          stressPremium: payload.result.stressPremium,
         },
       );
 
@@ -341,11 +435,20 @@ export default function EntryMatchPage() {
           firstTimeBuyer: payload.firstTimeBuyer,
           realDemand: payload.realDemand,
           annualIncome: payload.annualIncome,
+          existingAnnualDebt: payload.existingAnnualDebt || undefined,
+          stressMode: payload.stressMode,
+          rateType: payload.rateType,
+          contractRate: payload.contractRate,
+          dsrRepaymentMethod: payload.dsrRepaymentMethod,
         },
         entryMatchResult: {
           bidCapacity: payload.result.bidCapacity,
           ltvApplied: payload.result.ltvApplied,
           dsrCapacity: payload.result.dsrCapacity,
+          dsrCapacityEqualPayment: payload.result.dsrCapacityEqualPayment,
+          dsrCapacityEqualPrincipal: payload.result.dsrCapacityEqualPrincipal,
+          assessmentRate: payload.result.assessmentRate,
+          stressPremium: payload.result.stressPremium,
         },
         stage: afterEntryMatchSaved(activeCase.stage),
       });
@@ -488,18 +591,20 @@ export default function EntryMatchPage() {
                 <select
                   id="creditState"
                   value={creditState}
-                  onChange={(e) =>
-                    setCreditState(e.target.value as CreditState)
-                  }
+                  onChange={(e) => {
+                    const next = e.target.value as CreditState;
+                    setCreditState(next);
+                    setContractRatePct(defaultContractRatePct(next));
+                  }}
                 >
-                  <option value="우수">우수</option>
-                  <option value="보통">보통</option>
-                  <option value="주의">주의</option>
+                  <option value="우수">{CREDIT_MAP.우수.label}</option>
+                  <option value="보통">{CREDIT_MAP.보통.label}</option>
+                  <option value="주의">{CREDIT_MAP.주의.label}</option>
                 </select>
               </div>
               <p className="field-hint">
-                LTV·DSR 계산용 추정 금리입니다. 실제 대출조건은 제4장에서 직접
-                입력합니다.
+                LTV 계산용 신용 보정입니다. DSR 금리는 아래 대출 여력에서
+                직접 입력합니다.
               </p>
             </div>
             <div className="field">
@@ -557,6 +662,54 @@ export default function EntryMatchPage() {
                 </select>
               </div>
               <p className="field-hint" />
+            </div>
+          </div>
+
+          <div className="grid2-row">
+            <div className="field">
+              <div className="field-box">
+                <label htmlFor="existingMonthlyDebt">
+                  기존 대출 월 상환 (만원){' '}
+                  <span style={{ fontWeight: 400, color: 'var(--slate)' }}>
+                    — 선택 · DSR 잔여 여력
+                  </span>
+                </label>
+                <input
+                  id="existingMonthlyDebt"
+                  type="text"
+                  value={existingMonthlyDebt}
+                  placeholder="0"
+                  onChange={(e) => {
+                    const n = parseNumberInput(e.target.value);
+                    setExistingMonthlyDebt(
+                      e.target.value === '' ? '' : formatComma(n),
+                    );
+                  }}
+                />
+              </div>
+              <p className="field-hint">
+                신용·기타 대출의 월 원리금 합계입니다. 없으면 비워 두세요.
+              </p>
+            </div>
+            <div className="field">
+              <div className="field-box">
+                <label htmlFor="stressMode">스트레스 DSR 모드</label>
+                <select
+                  id="stressMode"
+                  value={stressMode}
+                  onChange={(e) =>
+                    setStressMode(e.target.value as StressDsrMode)
+                  }
+                >
+                  <option value="policy">
+                    정책기본 — 고시 스트레스금리 가산 (입찰 전 권장)
+                  </option>
+                  <option value="none">
+                    스트레스 제외 — 실제 대출금리만 (비교용)
+                  </option>
+                </select>
+              </div>
+              <p className="field-hint">{STRESS_DSR_NOTICE}</p>
             </div>
           </div>
 
@@ -694,10 +847,154 @@ export default function EntryMatchPage() {
         </div>
       </Section>
 
+      <Section title="대출 여력 (DSR)">
+        <p className="s-note">
+          스트레스금리는 실제 이자가 아닙니다. 한도 심사에만 쓰는 가상
+          금리입니다.
+        </p>
+        <div className="dsr-rate-breakdown">
+          <div className="dsr-rate-row dsr-rate-row-input">
+            <label htmlFor="contractRatePct">실제 대출금리</label>
+            <div className="dsr-rate-input-wrap">
+              <input
+                id="contractRatePct"
+                type="text"
+                inputMode="decimal"
+                className="dsr-rate-input"
+                value={contractRatePct}
+                onChange={(e) =>
+                  setContractRatePct(e.target.value.replace(/[^\d.]/g, ''))
+                }
+              />
+              <span className="dsr-rate-input-suffix">%</span>
+            </div>
+          </div>
+          <div className="dsr-rate-row">
+            <span>+ 스트레스 가산</span>
+            <span>
+              {stressMode === 'none'
+                ? '0.0%p'
+                : `+${(result.stressPremium * 100).toFixed(
+                    result.stressPremium % 0.01 === 0 ? 1 : 2,
+                  )}%p`}
+            </span>
+          </div>
+          <div className="dsr-rate-row dsr-rate-row-total">
+            <span>DSR 산정금리</span>
+            <span>{(result.assessmentRate * 100).toFixed(2)}%</span>
+          </div>
+        </div>
+        <p className="field-hint" style={{ marginTop: 8, marginBottom: 16 }}>
+          {result.stressLabel} · {result.stressNotice}
+          {stressMode === 'policy' ? ` · ${STRESS_DSR_NOTICE}` : null}
+        </p>
+
+        <div className="dsr-capacity-toolbar">
+          <span className="dsr-capacity-toolbar-label">상환방식 선택</span>
+          <button
+            type="button"
+            className="dsr-help-link"
+            onClick={() => setRepaymentGuideOpen(true)}
+          >
+            원금·원리금 차이
+          </button>
+        </div>
+
+        <div className="dsr-capacity-grid">
+          <button
+            type="button"
+            className={`dsr-capacity-card${
+              dsrRepaymentMethod === 'equalPrincipal'
+                ? ' dsr-capacity-card-selected'
+                : ''
+            }`}
+            onClick={() => setDsrRepaymentMethod('equalPrincipal')}
+          >
+            <div className="dsr-capacity-title">
+              원금균등 · {STRESS_MODE_LABEL[stressMode]}
+            </div>
+            <div className="dsr-capacity-figure">
+              {fmtWon(result.dsrCapacityEqualPrincipal)}
+            </div>
+            <div className="dsr-capacity-meta">
+              {dsrRepaymentMethod === 'equalPrincipal'
+                ? '입찰 상한에 반영 · '
+                : null}
+              월 상환 가능{' '}
+              {fmtWon(Math.round(result.annualRepayCapacity / 12))}
+            </div>
+          </button>
+          <button
+            type="button"
+            className={`dsr-capacity-card${
+              dsrRepaymentMethod === 'equalPayment'
+                ? ' dsr-capacity-card-selected'
+                : ''
+            }`}
+            onClick={() => setDsrRepaymentMethod('equalPayment')}
+          >
+            <div className="dsr-capacity-title">
+              원리금균등 · {STRESS_MODE_LABEL[stressMode]}
+            </div>
+            <div className="dsr-capacity-figure dsr-capacity-figure-sub">
+              {fmtWon(result.dsrCapacityEqualPayment)}
+            </div>
+            <div className="dsr-capacity-meta">
+              {dsrRepaymentMethod === 'equalPayment'
+                ? '입찰 상한에 반영 · '
+                : null}
+              일부 은행·2금융은 이 방식으로 더 높게 나올 수 있음
+            </div>
+          </button>
+        </div>
+
+        <div className="dsr-breakdown-block">
+          <div className="dsr-breakdown-title">산출 근거</div>
+          <div className="dsr-breakdown-body">
+            <div className="dsr-rate-row">
+              <span>연간 최대 상환 (소득 × DSR)</span>
+              <span>{fmtWon(Math.round(result.annualRepayCapacity))}</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>실제 대출금리</span>
+              <span>{(result.contractRate * 100).toFixed(2)}%</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>스트레스 모드</span>
+              <span>{STRESS_MODE_LABEL[stressMode]}</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>상환방식 (입찰 상한)</span>
+              <span>{REPAYMENT_LABEL[dsrRepaymentMethod]}</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>상환기간</span>
+              <span>30년</span>
+            </div>
+          </div>
+        </div>
+      </Section>
+
       <ResultPanel
-        mark="계산 결과 (실시간 계산)"
+        mark="입찰 상한 (실시간)"
         figure={fmtWon(result.bidCapacity)}
-        caption="낙찰가 기준 실투자 가능액 (자기자본 + 경락대출 기준, LTV·DSR·절대금액 캡 중 더 낮은 쪽 적용)"
+        caption={
+          <>
+            {REPAYMENT_LABEL[dsrRepaymentMethod]} DSR ·{' '}
+            {STRESS_MODE_LABEL[stressMode]} · LTV·절대금액 캡 중 가장 낮은 쪽
+            적용
+            {result.binding === 'DSR' ? (
+              <>
+                {' '}
+                · 지금은 <strong>DSR</strong> 때문에 여기까지
+              </>
+            ) : result.binding === 'LTV' ? (
+              <> · 지금은 LTV 때문에 여기까지</>
+            ) : result.binding === 'CAP' ? (
+              <> · 절대금액 캡 적용</>
+            ) : null}
+          </>
+        }
         rows={[
           {
             label: '적용 LTV',
@@ -714,8 +1011,19 @@ export default function EntryMatchPage() {
             ),
           },
           {
-            label: 'DSR 대출한도 (소득 기준)',
-            value: fmtWon(result.dsrCapacity),
+            label:
+              dsrRepaymentMethod === 'equalPrincipal'
+                ? 'DSR 한도 (원금균등)'
+                : 'DSR 한도 (원리금균등)',
+            value: fmtWon(
+              dsrRepaymentMethod === 'equalPrincipal'
+                ? result.dsrCapacityEqualPrincipal
+                : result.dsrCapacityEqualPayment,
+            ),
+          },
+          {
+            label: 'DSR 산정금리',
+            value: `${(result.assessmentRate * 100).toFixed(2)}% (실제 대출금리 ${(result.contractRate * 100).toFixed(2)}%)`,
           },
           {
             label: '실제 적용 대출한도',
@@ -778,6 +1086,11 @@ export default function EntryMatchPage() {
         }
       />
 
+      <RepaymentMethodGuideModal
+        open={repaymentGuideOpen}
+        onClose={() => setRepaymentGuideOpen(false)}
+        selectedMethod={dsrRepaymentMethod}
+      />
     </>
   );
 }

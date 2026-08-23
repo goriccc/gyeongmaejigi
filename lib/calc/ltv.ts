@@ -102,9 +102,9 @@ export function applyLtvWithCreditAndZone(
 }
 
 export const CREDIT_MAP = {
-  우수: { adj: 0.05, rate: 0.04, label: '우수' },
-  보통: { adj: 0, rate: 0.045, label: '보통' },
-  주의: { adj: -0.05, rate: 0.052, label: '주의' },
+  우수: { adj: 0.05, rate: 0.055, label: '우수 (900점 이상)' },
+  보통: { adj: 0, rate: 0.058, label: '보통 (850점 이상)' },
+  주의: { adj: -0.05, rate: 0.061, label: '주의 (750점 이상)' },
 } as const;
 
 export type CreditState = keyof typeof CREDIT_MAP;

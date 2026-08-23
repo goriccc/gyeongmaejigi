@@ -4,7 +4,12 @@ import {
   acquisitionTaxRate,
   firstTimeTaxDeduction,
 } from './acquisitionTax';
-import { dsrLoanCapacity, stressDsrPremium } from './dsr';
+import {
+  dsrAnnualRepayCapacity,
+  dsrLoanCapacity,
+  dsrLoanCapacityEqualPrincipal,
+  stressDsrPremium,
+} from './dsr';
 import {
   applyLtvWithCredit,
   applyLtvWithPolicy,
@@ -90,9 +95,10 @@ describe('loanAmountCap / firstTimeTaxDeduction / stressDsr', () => {
     expect(firstTimeTaxDeduction(false, 500_000_000, 5_000_000)).toBe(0);
   });
 
-  it('스트레스 DSR 지역 분기', () => {
+  it('스트레스 DSR 지역 분기 (2026 하반기)', () => {
     expect(stressDsrPremium(true)).toBe(0.03);
-    expect(stressDsrPremium(false)).toBe(0.015);
+    expect(stressDsrPremium(false)).toBe(0.0075);
+    expect(stressDsrPremium(false, 'adjusted')).toBe(0.03);
   });
 });
 
@@ -173,10 +179,20 @@ describe('regionInvestPossible', () => {
 });
 
 describe('dsrLoanCapacity', () => {
-  it('연금현재가치 공식 (심사만기 30년)', () => {
+  it('원리금균등 연금현재가치 (심사만기 30년)', () => {
     const cap = dsrLoanCapacity(55_000_000, 0.5, 0.045, 30);
     expect(cap).toBeGreaterThan(400_000_000);
     expect(cap).toBeLessThan(500_000_000);
+  });
+
+  it('원금균등이 동일 금리에서 원리금균등보다 작다', () => {
+    const income = 50_000_000;
+    const dsr = 0.5;
+    const rate = 0.075;
+    const eqPay = dsrLoanCapacity(income, dsr, rate, 30);
+    const annual = dsrAnnualRepayCapacity(income, dsr, 0);
+    const eqPrin = dsrLoanCapacityEqualPrincipal(annual, rate, 30);
+    expect(eqPrin).toBeLessThan(eqPay);
   });
 });
 
@@ -251,12 +267,27 @@ describe('calcEntryMatch', () => {
     expect(result.taxDeduction).toBeGreaterThan(0);
   });
 
-  it('지방 다주택 → 미확정 참고치', () => {
-    const result = calcEntryMatch({
-      ...base,
-      houseCount: 1,
-      sudogwon: false,
+  it('원리금균등 선택 시 DSR 한도가 더 크다', () => {
+    const baseInput = {
+      seedMoney: 80_000_000,
+      houseCount: 0 as const,
+      creditState: '보통' as const,
+      annualIncome: 55_000_000,
+      dsrRate: 0.5,
+      regZone: 'none' as const,
+      sudogwon: true,
+      lowPriceException: false,
+      dispositionPlanned: false,
+    };
+    const principal = calcEntryMatch({
+      ...baseInput,
+      dsrRepaymentMethod: 'equalPrincipal',
     });
-    expect(result.ltvUnverified).toBe(true);
+    const payment = calcEntryMatch({
+      ...baseInput,
+      dsrRepaymentMethod: 'equalPayment',
+    });
+    expect(payment.dsrCapacity).toBeGreaterThan(principal.dsrCapacity);
+    expect(payment.bidCapacity).toBeGreaterThanOrEqual(principal.bidCapacity);
   });
 });

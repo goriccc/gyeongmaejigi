@@ -5,7 +5,15 @@ import {
   type HouseCount,
   type RegZone,
 } from './acquisitionTax';
-import { dsrLoanCapacity, stressDsrPremium } from './dsr';
+import {
+  dsrAnnualRepayCapacity,
+  dsrAssessmentRate,
+  dsrLoanCapacityEqualPayment,
+  dsrLoanCapacityEqualPrincipal,
+  stressDsrBreakdown,
+  type MortgageRateType,
+  type StressDsrMode,
+} from './dsr';
 import {
   applyLtvWithPolicy,
   CREDIT_MAP,
@@ -16,12 +24,15 @@ import {
 
 export type BindingConstraint = 'LTV' | 'DSR' | 'CAP';
 
+/** DSR 한도 산출 상환방식 */
+export type DsrRepaymentMethod = 'equalPrincipal' | 'equalPayment';
+
 export type EntryMatchInput = {
   /** 시드머니(원) */
   seedMoney: number;
   houseCount: HouseCount;
   creditState: CreditState;
-  /** 연소득(원) — 세션 전용, 저장하지 않음 */
+  /** 연소득(원) */
   annualIncome: number;
   /** DSR 한도 비율 (1금융 0.4 / 2금융 0.5) */
   dsrRate: number;
@@ -33,12 +44,27 @@ export type EntryMatchInput = {
   firstTimeBuyer?: boolean;
   /** 서민·실수요자 (무주택일 때만 의미) */
   realDemand?: boolean;
+  /** 기존 대출 연간 원리금(원) — DSR 잔여 여력 */
+  existingAnnualDebt?: number;
+  /** 스트레스 반영 모드 */
+  stressMode?: StressDsrMode;
+  /** 금리유형 — 1차 기본 변동형 */
+  rateType?: MortgageRateType;
+  /** 실제 대출금리(연 비율). 미입력 시 신용 상태 추정값 */
+  contractRate?: number;
+  /** 입찰 상한에 쓸 DSR 상환방식 */
+  dsrRepaymentMethod?: DsrRepaymentMethod;
 };
 
 export type EntryMatchResult = {
   bidCapacity: number;
   ltvApplied: number;
+  /** 입찰 상한에 쓰는 DSR 한도 (원금균등·정책기본) */
   dsrCapacity: number;
+  /** 원리금균등·동일 산정금리 (서브 참고) */
+  dsrCapacityEqualPayment: number;
+  /** 원금균등 한도 */
+  dsrCapacityEqualPrincipal: number;
   loanCapacity: number;
   binding: BindingConstraint;
   loanBadge: string;
@@ -48,7 +74,16 @@ export type EntryMatchResult = {
   taxAmount: number;
   taxDeduction: number;
   sizeGuide: string;
+  /** 약정(가정)금리 */
+  contractRate: number;
+  /** 심사가산(%p → 비율) */
   stressPremium: number;
+  /** DSR 산정금리 = 약정 + 가산 (또는 커스텀) */
+  assessmentRate: number;
+  stressLabel: string;
+  stressNotice: string;
+  annualRepayCapacity: number;
+  dsrRepaymentMethod: DsrRepaymentMethod;
 };
 
 /**
@@ -108,7 +143,8 @@ function loanBadgeFor(params: {
 }
 
 /**
- * LTV → DSR → 절대금액 캡 순으로 실투자 가능 낙찰가를 역산합니다.
+ * LTV → DSR(원금균등) → 절대금액 캡 순으로 실투자 가능 낙찰가를 역산합니다.
+ * 원리금균등 한도는 참고값으로만 함께 산출합니다.
  */
 export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
   const {
@@ -121,22 +157,56 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     sudogwon = true,
     lowPriceException = false,
     dispositionPlanned: dispositionPlannedRaw = false,
+    existingAnnualDebt = 0,
+    stressMode = 'policy',
+    rateType = 'floating',
+    dsrRepaymentMethod = 'equalPrincipal',
   } = input;
 
   const firstTimeBuyer = houseCount === 0 && Boolean(input.firstTimeBuyer);
   const realDemand = houseCount === 0 && Boolean(input.realDemand);
-  // 처분조건부(일시적 2주택)는 현재 1주택일 때만 유효
   const dispositionPlanned =
     Boolean(dispositionPlannedRaw) && houseCount === 1;
 
   const credit = CREDIT_MAP[creditState];
-  const stressPremium = stressDsrPremium(sudogwon);
-  const dsrCapacity = dsrLoanCapacity(
+  const contractRate = input.contractRate ?? credit.rate;
+  const breakdown = stressDsrBreakdown({ sudogwon, regZone, rateType });
+
+  let stressPremium = 0;
+  let assessmentRate = contractRate;
+  let stressLabel = breakdown.label;
+  let stressNotice = breakdown.notice;
+
+  if (stressMode === 'none') {
+    stressPremium = 0;
+    assessmentRate = contractRate;
+    stressLabel = '스트레스 제외 · 실제 대출금리만';
+    stressNotice =
+      '한도 비교용입니다. 실제 심사는 스트레스금리를 가산합니다.';
+  } else {
+    stressPremium = breakdown.premium;
+    assessmentRate = dsrAssessmentRate(contractRate, stressPremium);
+  }
+
+  const annualRepayCapacity = dsrAnnualRepayCapacity(
     annualIncome,
     dsrRate,
-    credit.rate + stressPremium,
+    existingAnnualDebt,
+  );
+  const dsrCapacityEqualPrincipal = dsrLoanCapacityEqualPrincipal(
+    annualRepayCapacity,
+    assessmentRate,
     30,
   );
+  const dsrCapacityEqualPayment = dsrLoanCapacityEqualPayment(
+    annualRepayCapacity,
+    assessmentRate,
+    30,
+  );
+  const dsrCapacity =
+    dsrRepaymentMethod === 'equalPayment'
+      ? dsrCapacityEqualPayment
+      : dsrCapacityEqualPrincipal;
 
   const lenderLtv = dsrRate;
   const zoneCap = ltvCap(
@@ -169,7 +239,6 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     dispositionPlanned,
   ] as const;
 
-  // 1) LTV 역산
   let priceByLTV =
     ltv <= 0
       ? Math.max(0, (seedMoney - fixedCost) / (1 + 0.01))
@@ -202,7 +271,6 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     binding = 'DSR';
   }
 
-  // 3) 절대금액 캡
   const cap = loanAmountCap(sudogwon, price);
   if (loanAmt > cap) {
     let priceByCap = seedMoney + cap - fixedCost;
@@ -242,6 +310,8 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     bidCapacity: price,
     ltvApplied: ltv,
     dsrCapacity,
+    dsrCapacityEqualPayment,
+    dsrCapacityEqualPrincipal,
     loanCapacity: loanAmt,
     binding,
     loanBadge,
@@ -251,6 +321,12 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     taxAmount,
     taxDeduction,
     sizeGuide: sizeGuideText(price),
+    contractRate,
     stressPremium,
+    assessmentRate,
+    stressLabel,
+    stressNotice,
+    annualRepayCapacity,
+    dsrRepaymentMethod,
   };
 }

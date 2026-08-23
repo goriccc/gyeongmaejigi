@@ -137,12 +137,27 @@ export type EntryMatchInputs = {
   realDemand?: boolean;
   /** 연소득 (원) — DSR 산출용 */
   annualIncome?: number;
+  /** 기존 대출 연간 원리금 (원) — DSR 잔여 여력 */
+  existingAnnualDebt?: number;
+  /** 스트레스 DSR 모드 */
+  stressMode?: 'policy' | 'none';
+  /** 금리유형 — 기본 변동형 */
+  rateType?: 'floating' | 'hybrid' | 'periodic';
+  /** 실제 대출금리 (연 비율) */
+  contractRate?: number;
+  /** DSR 상환방식 — 입찰 상한에 반영 */
+  dsrRepaymentMethod?: 'equalPrincipal' | 'equalPayment';
 };
 
 export type EntryMatchResult = {
   bidCapacity: number;
   ltvApplied: number;
+  /** 입찰 상한용 DSR (원금균등) */
   dsrCapacity: number;
+  dsrCapacityEqualPayment?: number;
+  dsrCapacityEqualPrincipal?: number;
+  assessmentRate?: number;
+  stressPremium?: number;
 };
 
 export type FieldBriefingTrade = {

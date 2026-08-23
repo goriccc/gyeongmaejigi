@@ -1445,6 +1445,428 @@ textarea:focus {
   gap: 12px;
 }
 
+.dsr-rate-breakdown {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  background: var(--paper-warm, #faf9f6);
+}
+
+.dsr-rate-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 4px 0;
+  color: var(--slate);
+}
+
+.dsr-rate-row-total {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dsr-rate-row-total span:last-child {
+  font-family: var(--mono);
+  color: var(--forest);
+}
+
+.dsr-capacity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.dsr-capacity-card {
+  display: block;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dsr-capacity-card:hover {
+  border-color: var(--brass);
+}
+
+.dsr-capacity-card-selected {
+  border-color: var(--brass);
+  background: linear-gradient(
+    165deg,
+    rgba(184, 150, 90, 0.08) 0%,
+    var(--paper) 55%
+  );
+  box-shadow: 0 0 0 1px rgba(184, 150, 90, 0.25);
+}
+
+.dsr-rate-row-input {
+  align-items: center;
+}
+
+.dsr-rate-row-input label {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.dsr-rate-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dsr-rate-input {
+  width: 4.5em;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-bottom: 2px solid var(--brass);
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 13px;
+  text-align: right;
+}
+
+.dsr-rate-input-suffix {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--slate);
+}
+
+.dsr-capacity-kicker {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin-bottom: 4px;
+}
+
+.dsr-capacity-title {
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.dsr-capacity-figure {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--forest);
+  line-height: 1.2;
+}
+
+.dsr-capacity-figure-sub {
+  font-size: 22px;
+  color: var(--forest);
+  opacity: 0.85;
+}
+
+.dsr-capacity-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--slate);
+}
+
+.dsr-breakdown-block {
+  margin-top: 16px;
+}
+
+.dsr-breakdown-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.dsr-breakdown-body {
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+}
+
+@media (max-width: 720px) {
+  .dsr-capacity-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dsr-capacity-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.dsr-capacity-toolbar-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dsr-help-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--brass-deep, #8a7344);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.dsr-help-link:hover {
+  color: var(--ink);
+}
+
+.repay-guide-modal {
+  max-width: 640px;
+  width: min(640px, 92vw);
+  padding: 28px 24px 24px;
+}
+
+.repay-guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.repay-guide-head h3 {
+  margin-bottom: 8px;
+}
+
+.repay-guide-lead {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--slate);
+}
+
+.repay-guide-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--slate);
+  cursor: pointer;
+}
+
+.repay-guide-close:hover {
+  border-color: var(--brass);
+  color: var(--ink);
+}
+
+.repay-guide-demo-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--slate);
+  background: var(--paper-warm, #faf9f6);
+  border: 1px dashed var(--line);
+}
+
+.repay-guide-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+.repay-guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.repay-guide-table th,
+.repay-guide-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+
+.repay-guide-table thead th {
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper-warm, #faf9f6);
+}
+
+.repay-guide-table tbody th[scope='row'] {
+  text-align: left;
+  font-weight: 500;
+  color: var(--slate);
+}
+
+.repay-guide-table td {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+.repay-guide-table-accent td {
+  color: var(--forest);
+  font-weight: 600;
+}
+
+.repay-guide-diff {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--slate);
+}
+
+.repay-guide-diff strong {
+  color: var(--forest);
+  font-family: var(--mono);
+}
+
+.repay-guide-diff-sub {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+.repay-guide-chart {
+  margin: 0 0 18px;
+  padding: 12px 10px 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.repay-guide-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.repay-guide-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.repay-guide-axis {
+  fill: var(--slate);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+
+.repay-guide-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.repay-guide-line-principal {
+  stroke: #3b6fb6;
+}
+
+.repay-guide-line-payment {
+  stroke: #d07a2a;
+  stroke-dasharray: 6 4;
+}
+
+.repay-guide-chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--slate);
+}
+
+.repay-guide-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.repay-guide-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top-width: 3px;
+  border-top-style: solid;
+}
+
+.repay-guide-swatch-principal {
+  border-top-color: #3b6fb6;
+}
+
+.repay-guide-swatch-payment {
+  border-top-color: #d07a2a;
+  border-top-style: dashed;
+}
+
+.repay-guide-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.repay-guide-card {
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--slate);
+}
+
+.repay-guide-card-active {
+  border-color: var(--brass);
+  background: linear-gradient(
+    165deg,
+    rgba(184, 150, 90, 0.1) 0%,
+    var(--paper) 60%
+  );
+  box-shadow: 0 0 0 1px rgba(184, 150, 90, 0.2);
+}
+
+.repay-guide-card-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.repay-guide-card-foot {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+}
+
+.repay-guide-footnote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--slate);
+}
+
+@media (max-width: 720px) {
+  .repay-guide-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .repay-guide-modal {
+    padding: 22px 18px 18px;
+  }
+}
+
 .result-row:last-child {
   border-bottom: none;
 }
