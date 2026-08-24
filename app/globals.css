@@ -1477,13 +1477,29 @@ textarea:focus {
 .dsr-capacity-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-rows: auto 1fr;
+  column-gap: 14px;
+  row-gap: 12px;
   margin-top: 18px;
+  align-items: stretch;
+}
+
+.dsr-capacity-grid-spacer {
+  min-height: 0;
+}
+
+.dsr-capacity-card-help {
+  justify-self: end;
+  align-self: end;
+  line-height: 1.2;
 }
 
 .dsr-capacity-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 16px 18px;
   border: 1px solid var(--line);
   background: var(--paper);
@@ -1571,7 +1587,8 @@ textarea:focus {
 }
 
 .dsr-capacity-meta {
-  margin-top: 8px;
+  margin-top: auto;
+  padding-top: 8px;
   font-size: 12px;
   line-height: 1.45;
   color: var(--slate);
@@ -1596,14 +1613,29 @@ textarea:focus {
 @media (max-width: 720px) {
   .dsr-capacity-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    row-gap: 12px;
+  }
+
+  .dsr-capacity-grid-spacer {
+    display: none;
+  }
+
+  .dsr-capacity-card-principal {
+    order: 0;
+  }
+
+  .dsr-capacity-card-help {
+    order: 1;
+    justify-self: end;
+  }
+
+  .dsr-capacity-card-payment {
+    order: 2;
   }
 }
 
 .dsr-capacity-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   margin-top: 4px;
 }
 
@@ -1611,6 +1643,11 @@ textarea:focus {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
+}
+
+.dsr-grace-field {
+  margin-top: 14px;
+  margin-bottom: 4px;
 }
 
 .dsr-help-link {

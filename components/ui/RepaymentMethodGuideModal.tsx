@@ -231,8 +231,8 @@ export function RepaymentMethodGuideModal({
               적습니다.
             </p>
             <p className="repay-guide-card-foot">
-              DSR 심사: <strong>1회차(최대) 월상환</strong> 기준 → 한도가 더
-              보수적. 경매지기 기본값.
+              DSR 심사: <strong>전체기간 총상환액 평균</strong> 기준(거치
+              반영). 1회차 최대월상환 역산보다 은행 승인액에 가깝습니다.
             </p>
           </div>
           <div
@@ -248,8 +248,8 @@ export function RepaymentMethodGuideModal({
               <strong>자금 계획은 쉽지만</strong> 총 이자는 더 많습니다.
             </p>
             <p className="repay-guide-card-foot">
-              DSR 심사: <strong>고정 월상환</strong> 기준 → 같은 조건에서 한도가
-              더 높게 나올 수 있음 (은행·2금융 일부).
+              DSR 심사: <strong>전체기간 총상환액 평균</strong> 기준(거치
+              반영). 통상 원금균등보다 한도가 낮게 나올 수 있습니다.
             </p>
           </div>
         </div>

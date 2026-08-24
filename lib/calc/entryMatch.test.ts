@@ -185,14 +185,15 @@ describe('dsrLoanCapacity', () => {
     expect(cap).toBeLessThan(500_000_000);
   });
 
-  it('원금균등이 동일 금리에서 원리금균등보다 작다', () => {
+  it('원금균등(총상환평균)과 원리금균등이 동시에 산출된다', () => {
     const income = 50_000_000;
     const dsr = 0.5;
     const rate = 0.075;
-    const eqPay = dsrLoanCapacity(income, dsr, rate, 30);
     const annual = dsrAnnualRepayCapacity(income, dsr, 0);
-    const eqPrin = dsrLoanCapacityEqualPrincipal(annual, rate, 30);
-    expect(eqPrin).toBeLessThan(eqPay);
+    const eqPay = dsrLoanCapacity(income, dsr, rate, 30);
+    const eqPrin = dsrLoanCapacityEqualPrincipal(annual, rate, 30, 12);
+    expect(eqPrin).toBeGreaterThan(0);
+    expect(eqPay).toBeGreaterThan(0);
   });
 });
 
@@ -267,7 +268,7 @@ describe('calcEntryMatch', () => {
     expect(result.taxDeduction).toBeGreaterThan(0);
   });
 
-  it('원리금균등 선택 시 DSR 한도가 더 크다', () => {
+  it('원금균등(총상환평균)이 동일 조건에서 원리금균등보다 한도가 크다', () => {
     const baseInput = {
       seedMoney: 80_000_000,
       houseCount: 0 as const,
@@ -278,6 +279,7 @@ describe('calcEntryMatch', () => {
       sudogwon: true,
       lowPriceException: false,
       dispositionPlanned: false,
+      graceMonths: 12,
     };
     const principal = calcEntryMatch({
       ...baseInput,
@@ -287,7 +289,26 @@ describe('calcEntryMatch', () => {
       ...baseInput,
       dsrRepaymentMethod: 'equalPayment',
     });
-    expect(payment.dsrCapacity).toBeGreaterThan(principal.dsrCapacity);
-    expect(payment.bidCapacity).toBeGreaterThanOrEqual(principal.bidCapacity);
+    expect(principal.dsrCapacity).toBeGreaterThan(payment.dsrCapacity);
+    expect(principal.graceMonths).toBe(12);
+  });
+
+  it('기존부채가 있으면 DSR 한도 도달 시 스트레스DSR이 목표비율보다 낮다', () => {
+    const result = calcEntryMatch({
+      seedMoney: 500_000_000,
+      houseCount: 0,
+      creditState: '우수',
+      annualIncome: 49_200_000,
+      dsrRate: 0.5,
+      sudogwon: true,
+      existingAnnualDebt: 5_000_000,
+      contractRate: 0.055,
+      stressMode: 'policy',
+      graceMonths: 12,
+      dsrRepaymentMethod: 'equalPrincipal',
+    });
+    expect(result.binding).toBe('DSR');
+    expect(result.stressDsrRatio).toBeLessThan(0.5);
+    expect(result.stressDsrRatio).toBeGreaterThan(0.35);
   });
 });

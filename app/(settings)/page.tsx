@@ -14,7 +14,13 @@ import {
 } from '@/lib/calc/acquisitionTax';
 import { CREDIT_MAP, type CreditState } from '@/lib/calc/ltv';
 import type { StressDsrMode } from '@/lib/calc/dsr';
-import { STRESS_DSR_NOTICE } from '@/lib/calc/dsr';
+import {
+  STRESS_DSR_NOTICE,
+  DSR_GRACE_MONTHS_DEFAULT,
+  DSR_GRACE_MONTHS_MAX,
+  DSR_GRACE_MONTHS_MIN,
+  clampGraceMonths,
+} from '@/lib/calc/dsr';
 import type { DsrRepaymentMethod } from '@/lib/calc/entryMatch';
 import { fmtWon, formatComma, parseNumberInput } from '@/lib/format';
 import { useCases } from '@/lib/hooks/useCases';
@@ -238,7 +244,22 @@ export default function EntryMatchPage() {
     useState<DsrRepaymentMethod>(
       initial?.dsrRepaymentMethod ?? 'equalPrincipal',
     );
+  const [graceMonthsText, setGraceMonthsText] = useState(() =>
+    String(
+      clampGraceMonths(initial?.graceMonths ?? DSR_GRACE_MONTHS_DEFAULT),
+    ),
+  );
   const [repaymentGuideOpen, setRepaymentGuideOpen] = useState(false);
+
+  const graceMonths = useMemo(() => {
+    const n = parseInt(graceMonthsText, 10);
+    if (!Number.isFinite(n)) return DSR_GRACE_MONTHS_DEFAULT;
+    return clampGraceMonths(n);
+  }, [graceMonthsText]);
+
+  const commitGraceMonths = () => {
+    setGraceMonthsText(String(graceMonths));
+  };
 
   useEffect(() => {
     const global = loadEntryProfile();
@@ -272,6 +293,9 @@ export default function EntryMatchPage() {
         : defaultContractRatePct(s.creditState),
     );
     setDsrRepaymentMethod(s.dsrRepaymentMethod ?? 'equalPrincipal');
+    setGraceMonthsText(
+      String(clampGraceMonths(s.graceMonths ?? DSR_GRACE_MONTHS_DEFAULT)),
+    );
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -317,6 +341,7 @@ export default function EntryMatchPage() {
       rateType: 'floating',
       contractRate,
       dsrRepaymentMethod,
+      graceMonths,
     });
   }, [
     seedMoney,
@@ -334,6 +359,7 @@ export default function EntryMatchPage() {
     stressMode,
     contractRatePct,
     dsrRepaymentMethod,
+    graceMonths,
   ]);
 
   const savePayload = useMemo(
@@ -361,6 +387,7 @@ export default function EntryMatchPage() {
           : CREDIT_MAP[creditState].rate;
       })(),
       dsrRepaymentMethod,
+      graceMonths,
       result,
     }),
     [
@@ -380,6 +407,7 @@ export default function EntryMatchPage() {
       stressMode,
       contractRatePct,
       dsrRepaymentMethod,
+      graceMonths,
       result,
     ],
   );
@@ -407,6 +435,7 @@ export default function EntryMatchPage() {
           rateType: payload.rateType,
           contractRate: payload.contractRate,
           dsrRepaymentMethod: payload.dsrRepaymentMethod,
+          graceMonths: payload.graceMonths,
         },
         {
           bidCapacity: payload.result.bidCapacity,
@@ -416,6 +445,10 @@ export default function EntryMatchPage() {
           dsrCapacityEqualPrincipal: payload.result.dsrCapacityEqualPrincipal,
           assessmentRate: payload.result.assessmentRate,
           stressPremium: payload.result.stressPremium,
+          loanCapacity: payload.result.loanCapacity,
+          binding: payload.result.binding,
+          graceMonths: payload.result.graceMonths,
+          stressDsrRatio: payload.result.stressDsrRatio,
         },
       );
 
@@ -440,6 +473,7 @@ export default function EntryMatchPage() {
           rateType: payload.rateType,
           contractRate: payload.contractRate,
           dsrRepaymentMethod: payload.dsrRepaymentMethod,
+          graceMonths: payload.graceMonths,
         },
         entryMatchResult: {
           bidCapacity: payload.result.bidCapacity,
@@ -449,6 +483,10 @@ export default function EntryMatchPage() {
           dsrCapacityEqualPrincipal: payload.result.dsrCapacityEqualPrincipal,
           assessmentRate: payload.result.assessmentRate,
           stressPremium: payload.result.stressPremium,
+          loanCapacity: payload.result.loanCapacity,
+          binding: payload.result.binding,
+          graceMonths: payload.result.graceMonths,
+          stressDsrRatio: payload.result.stressDsrRatio,
         },
         stage: afterEntryMatchSaved(activeCase.stage),
       });
@@ -891,19 +929,55 @@ export default function EntryMatchPage() {
 
         <div className="dsr-capacity-toolbar">
           <span className="dsr-capacity-toolbar-label">상환방식 선택</span>
+        </div>
+
+        <div className="field dsr-grace-field">
+          <div className="field-box">
+            <label htmlFor="graceMonths">
+              거치기간 (개월){' '}
+              <span style={{ fontWeight: 400, color: 'var(--slate)' }}>
+                — DSR 한도 · 기본 {DSR_GRACE_MONTHS_DEFAULT}개월
+              </span>
+            </label>
+            <input
+              id="graceMonths"
+              type="text"
+              inputMode="numeric"
+              value={graceMonthsText}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === '' || /^\d{0,3}$/.test(v)) {
+                  setGraceMonthsText(v);
+                }
+              }}
+              onBlur={commitGraceMonths}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          </div>
+          <p className="field-hint">
+            거치 중에는 이자만 납부합니다. {DSR_GRACE_MONTHS_MIN}~
+            {DSR_GRACE_MONTHS_MAX}개월(미입력 시 기본{' '}
+            {DSR_GRACE_MONTHS_DEFAULT}개월). 원금·원리금균등 한도(총상환
+            평균)에 반영됩니다.
+          </p>
+        </div>
+
+        <div className="dsr-capacity-grid">
+          <div className="dsr-capacity-grid-spacer" aria-hidden="true" />
           <button
             type="button"
-            className="dsr-help-link"
+            className="dsr-help-link dsr-capacity-card-help"
             onClick={() => setRepaymentGuideOpen(true)}
           >
             원금·원리금 차이
           </button>
-        </div>
-
-        <div className="dsr-capacity-grid">
           <button
             type="button"
-            className={`dsr-capacity-card${
+            className={`dsr-capacity-card dsr-capacity-card-principal${
               dsrRepaymentMethod === 'equalPrincipal'
                 ? ' dsr-capacity-card-selected'
                 : ''
@@ -922,11 +996,13 @@ export default function EntryMatchPage() {
                 : null}
               월 상환 가능{' '}
               {fmtWon(Math.round(result.annualRepayCapacity / 12))}
+              <br />
+              총상환액 평균 방식 기준 · 통상 원리금균등보다 한도가 크게 나옴
             </div>
           </button>
           <button
             type="button"
-            className={`dsr-capacity-card${
+            className={`dsr-capacity-card dsr-capacity-card-payment${
               dsrRepaymentMethod === 'equalPayment'
                 ? ' dsr-capacity-card-selected'
                 : ''
@@ -943,7 +1019,7 @@ export default function EntryMatchPage() {
               {dsrRepaymentMethod === 'equalPayment'
                 ? '입찰 상한에 반영 · '
                 : null}
-              일부 은행·2금융은 이 방식으로 더 높게 나올 수 있음
+              은행 심사기준에 따라 원금균등보다 낮게 나올 수 있음
             </div>
           </button>
         </div>
@@ -952,12 +1028,47 @@ export default function EntryMatchPage() {
           <div className="dsr-breakdown-title">산출 근거</div>
           <div className="dsr-breakdown-body">
             <div className="dsr-rate-row">
-              <span>연간 최대 상환 (소득 × DSR)</span>
+              <span>
+                {parseNumberInput(existingMonthlyDebt) > 0
+                  ? '연간 최대 상환 (잔여 여력)'
+                  : '연간 최대 상환 (소득 × DSR)'}
+              </span>
               <span>{fmtWon(Math.round(result.annualRepayCapacity))}</span>
             </div>
             <div className="dsr-rate-row">
               <span>실제 대출금리</span>
               <span>{(result.contractRate * 100).toFixed(2)}%</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>스트레스 가산</span>
+              <span>
+                {stressMode === 'none'
+                  ? '0.0%p'
+                  : `+${(result.stressPremium * 100).toFixed(
+                      result.stressPremium % 0.01 === 0 ? 1 : 2,
+                    )}%p`}
+              </span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>DSR 산정금리</span>
+              <span>{(result.assessmentRate * 100).toFixed(2)}%</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>
+                {stressMode === 'none'
+                  ? '적용 DSR (스트레스 제외)'
+                  : result.binding === 'DSR'
+                    ? '스트레스 DSR'
+                    : '스트레스 DSR (적용대출)'}
+              </span>
+              <span>
+                {(result.stressDsrRatio * 100).toFixed(3)}%
+                {result.binding === 'DSR'
+                  ? parseNumberInput(existingMonthlyDebt) > 0
+                    ? ' · 잔여 여력 한도'
+                    : ' · DSR 한도 도달'
+                  : null}
+              </span>
             </div>
             <div className="dsr-rate-row">
               <span>스트레스 모드</span>
@@ -966,6 +1077,10 @@ export default function EntryMatchPage() {
             <div className="dsr-rate-row">
               <span>상환방식 (입찰 상한)</span>
               <span>{REPAYMENT_LABEL[dsrRepaymentMethod]}</span>
+            </div>
+            <div className="dsr-rate-row">
+              <span>거치기간</span>
+              <span>{result.graceMonths}개월</span>
             </div>
             <div className="dsr-rate-row">
               <span>상환기간</span>

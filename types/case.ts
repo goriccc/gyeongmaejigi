@@ -147,17 +147,29 @@ export type EntryMatchInputs = {
   contractRate?: number;
   /** DSR 상환방식 — 입찰 상한에 반영 */
   dsrRepaymentMethod?: 'equalPrincipal' | 'equalPayment';
+  /** 거치기간(개월) — DSR 총상환평균. 기본 12 */
+  graceMonths?: number;
 };
 
 export type EntryMatchResult = {
   bidCapacity: number;
   ltvApplied: number;
-  /** 입찰 상한용 DSR (원금균등) */
+  /** 입찰 상한용 DSR */
   dsrCapacity: number;
   dsrCapacityEqualPayment?: number;
   dsrCapacityEqualPrincipal?: number;
   assessmentRate?: number;
   stressPremium?: number;
+  /** 실제 적용 대출액 (LTV·DSR·CAP 반영) */
+  loanCapacity?: number;
+  binding?: 'LTV' | 'DSR' | 'CAP';
+  /** 적용 거치기간(개월) */
+  graceMonths?: number;
+  /**
+   * 적용대출 연평균상환(산정금리)÷연소득.
+   * 스트레스 모드 none이면 약정금리 기준 DSR.
+   */
+  stressDsrRatio?: number;
 };
 
 export type FieldBriefingTrade = {

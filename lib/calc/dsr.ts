@@ -118,38 +118,198 @@ export function dsrAssessmentRate(
   return Math.max(0, contractRate + premium);
 }
 
+/** DSR 심사 기본 만기(개월) · 경락잔금대출 */
+export const DSR_TERM_MONTHS_DEFAULT = 360;
+
+/** 거치기간 기본값(개월) — 은행 상담 관행 */
+export const DSR_GRACE_MONTHS_DEFAULT = 12;
+
+/** 거치기간 입력 허용 범위 */
+export const DSR_GRACE_MONTHS_MIN = 0;
+export const DSR_GRACE_MONTHS_MAX = 60;
+
+export function clampGraceMonths(
+  graceMonths: number,
+  termMonths = DSR_TERM_MONTHS_DEFAULT,
+): number {
+  if (!Number.isFinite(graceMonths)) return DSR_GRACE_MONTHS_DEFAULT;
+  const capped = Math.min(
+    DSR_GRACE_MONTHS_MAX,
+    Math.max(DSR_GRACE_MONTHS_MIN, Math.round(graceMonths)),
+  );
+  // 상환기간이 최소 1개월은 남도록
+  return Math.min(capped, Math.max(0, termMonths - 1));
+}
+
 /**
- * 원리금균등상환 — 월복리 연금현재가치 (은행·엑셀 산식과 동일).
+ * 원리금균등 — 1원당 연평균 상환액 (총상환÷년수).
+ */
+export function dsrAnnualAvgRepayPerWonEqualPayment(
+  assessmentRate: number,
+  years = 30,
+  graceMonths = DSR_GRACE_MONTHS_DEFAULT,
+): number {
+  const termMonths = Math.max(1, Math.round(years * 12));
+  const grace = clampGraceMonths(graceMonths, termMonths);
+  const repayMonths = termMonths - grace;
+  if (repayMonths <= 0) return 0;
+
+  const r = assessmentRate / 12;
+  const pmtPerWon =
+    r <= 0
+      ? 1 / repayMonths
+      : (r * Math.pow(1 + r, repayMonths)) /
+        (Math.pow(1 + r, repayMonths) - 1);
+
+  const totalRepayPerWon = grace * r + repayMonths * pmtPerWon;
+  const yearsTotal = termMonths / 12;
+  if (yearsTotal <= 0) return 0;
+  return totalRepayPerWon / yearsTotal;
+}
+
+/**
+ * 원금균등 — 1원당 연평균 상환액 (총상환÷년수).
+ */
+export function dsrAnnualAvgRepayPerWonEqualPrincipal(
+  assessmentRate: number,
+  years = 30,
+  graceMonths = DSR_GRACE_MONTHS_DEFAULT,
+): number {
+  const termMonths = Math.max(1, Math.round(years * 12));
+  const grace = clampGraceMonths(graceMonths, termMonths);
+  const repayMonths = termMonths - grace;
+  if (repayMonths <= 0) return 0;
+
+  const r = assessmentRate / 12;
+  const principalPerMonthPerWon = 1 / repayMonths;
+
+  let balance = 1;
+  let totalInterest = 0;
+
+  for (let m = 0; m < grace; m++) {
+    totalInterest += balance * r;
+  }
+  for (let m = 0; m < repayMonths; m++) {
+    totalInterest += balance * r;
+    balance -= principalPerMonthPerWon;
+  }
+
+  const yearsTotal = termMonths / 12;
+  if (yearsTotal <= 0) return 0;
+  return (1 + totalInterest) / yearsTotal;
+}
+
+/**
+ * 원리금균등상환 — 전체상환기간 총상환액(원금+이자) 평균 기준 역산.
+ * 거치기간에는 이자만, 이후 원리금균등. 거치 0이면 기존 연금현재가치와 동일.
  * @param assessmentRate - DSR 산정금리(스트레스 포함, 연 비율)
+ * @param graceMonths - 기본 12(은행 관행). 무거치는 0을 명시하세요.
  */
 export function dsrLoanCapacityEqualPayment(
   annualRepayCapacity: number,
   assessmentRate: number,
   years = 30,
+  graceMonths = DSR_GRACE_MONTHS_DEFAULT,
 ): number {
   if (annualRepayCapacity <= 0) return 0;
-  const months = years * 12;
-  const monthlyPay = annualRepayCapacity / 12;
-  const rMonth = assessmentRate / 12;
-  if (rMonth <= 0) return monthlyPay * months;
-  return (monthlyPay * (1 - Math.pow(1 + rMonth, -months))) / rMonth;
+  const annualAvgPerWon = dsrAnnualAvgRepayPerWonEqualPayment(
+    assessmentRate,
+    years,
+    graceMonths,
+  );
+  if (annualAvgPerWon <= 0) return 0;
+  return annualRepayCapacity / annualAvgPerWon;
 }
 
 /**
- * 원금균등상환 — 1회차(최대 월상환) 기준 역산.
- * 월상환 = P/n + P×r_month → P = 월상환 / (1/n + r_month)
+ * 원금균등상환 — 전체상환기간 총상환액(원금+이자) 평균 기준 역산.
+ * 거치기간에는 이자만, 이후 원금균등. 1회차 최대월상환 역산보다
+ * 실제 은행 DSR 승인액에 가깝다.
+ * @param graceMonths - 기본 12(은행 관행). 무거치는 0을 명시하세요.
  */
 export function dsrLoanCapacityEqualPrincipal(
   annualRepayCapacity: number,
   assessmentRate: number,
   years = 30,
+  graceMonths = DSR_GRACE_MONTHS_DEFAULT,
 ): number {
   if (annualRepayCapacity <= 0) return 0;
-  const months = years * 12;
-  const monthly = annualRepayCapacity / 12;
-  const rMonth = assessmentRate / 12;
-  if (months <= 0) return 0;
-  return monthly / (1 / months + rMonth);
+  const annualAvgPerWon = dsrAnnualAvgRepayPerWonEqualPrincipal(
+    assessmentRate,
+    years,
+    graceMonths,
+  );
+  if (annualAvgPerWon <= 0) return 0;
+  return annualRepayCapacity / annualAvgPerWon;
+}
+
+/**
+ * 대출원금에 대한 연평균 상환액(원금+이자 총액 ÷ 총년수).
+ */
+export function dsrAnnualAvgRepay(
+  principal: number,
+  assessmentRate: number,
+  years = 30,
+  graceMonths = DSR_GRACE_MONTHS_DEFAULT,
+  method: 'equalPrincipal' | 'equalPayment' = 'equalPrincipal',
+): number {
+  if (principal <= 0) return 0;
+  const perWon =
+    method === 'equalPayment'
+      ? dsrAnnualAvgRepayPerWonEqualPayment(
+          assessmentRate,
+          years,
+          graceMonths,
+        )
+      : dsrAnnualAvgRepayPerWonEqualPrincipal(
+          assessmentRate,
+          years,
+          graceMonths,
+        );
+  return principal * perWon;
+}
+
+/**
+ * 스트레스DSR(%) = 연평균 상환액(스트레스 산정금리) ÷ 연소득.
+ * 엑셀·은행 화면의 '스트레스DSR'과 동일 정의.
+ */
+export function stressDsrRatio(
+  principal: number,
+  annualIncome: number,
+  assessmentRate: number,
+  years = 30,
+  graceMonths = DSR_GRACE_MONTHS_DEFAULT,
+  method: 'equalPrincipal' | 'equalPayment' = 'equalPrincipal',
+): number {
+  if (annualIncome <= 0 || principal <= 0) return 0;
+  return (
+    dsrAnnualAvgRepay(
+      principal,
+      assessmentRate,
+      years,
+      graceMonths,
+      method,
+    ) / annualIncome
+  );
+}
+
+/**
+ * 연소득·DSR비율·거치기간으로 원금균등 최대대출한도를 산정합니다.
+ * (기존 부채가 있으면 annualIncome*dsrRatio 대신 잔여 여력을 넘기세요)
+ */
+export function calcMaxLoanEqualPrincipal(
+  income: number,
+  dsrRatio: number,
+  annualRate: number,
+  graceMonths: number,
+  termMonths = DSR_TERM_MONTHS_DEFAULT,
+): number {
+  return dsrLoanCapacityEqualPrincipal(
+    dsrAnnualRepayCapacity(income, dsrRatio, 0),
+    annualRate,
+    termMonths / 12,
+    graceMonths,
+  );
 }
 
 /**
@@ -166,6 +326,7 @@ export function dsrAnnualRepayCapacity(
 /**
  * @deprecated dsrLoanCapacityEqualPayment 사용.
  * 연금현재가치 공식으로 DSR 기준 최대 대출원금을 산정합니다.
+ * (거치 0개월 · 총상환평균 = 기존 PV와 동일)
  */
 export function dsrLoanCapacity(
   annualIncome: number,
@@ -177,5 +338,6 @@ export function dsrLoanCapacity(
     dsrAnnualRepayCapacity(annualIncome, dsrRate, 0),
     rate,
     years,
+    0,
   );
 }

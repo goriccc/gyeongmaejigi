@@ -10,7 +10,10 @@ import {
   dsrAssessmentRate,
   dsrLoanCapacityEqualPayment,
   dsrLoanCapacityEqualPrincipal,
+  clampGraceMonths,
+  DSR_GRACE_MONTHS_DEFAULT,
   stressDsrBreakdown,
+  stressDsrRatio,
   type MortgageRateType,
   type StressDsrMode,
 } from './dsr';
@@ -54,6 +57,8 @@ export type EntryMatchInput = {
   contractRate?: number;
   /** 입찰 상한에 쓸 DSR 상환방식 */
   dsrRepaymentMethod?: DsrRepaymentMethod;
+  /** 거치기간(개월) — DSR 총상환평균 산정용. 기본 12 */
+  graceMonths?: number;
 };
 
 export type EntryMatchResult = {
@@ -84,6 +89,14 @@ export type EntryMatchResult = {
   stressNotice: string;
   annualRepayCapacity: number;
   dsrRepaymentMethod: DsrRepaymentMethod;
+  /** 적용 거치기간(개월) */
+  graceMonths: number;
+  /**
+   * 스트레스DSR 비율 — 적용 대출액(loanCapacity)의
+   * 연평균 상환액(산정금리) ÷ 연소득. 엑셀·은행 화면과 동일 정의.
+   * stressMode none이면 약정금리 기준. 기존부채가 있으면 목표 DSR%보다 낮을 수 있음.
+   */
+  stressDsrRatio: number;
 };
 
 /**
@@ -143,7 +156,7 @@ function loanBadgeFor(params: {
 }
 
 /**
- * LTV → DSR(원금균등) → 절대금액 캡 순으로 실투자 가능 낙찰가를 역산합니다.
+ * LTV → DSR(원금균등·총상환평균) → 절대금액 캡 순으로 실투자 가능 낙찰가를 역산합니다.
  * 원리금균등 한도는 참고값으로만 함께 산출합니다.
  */
 export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
@@ -161,12 +174,14 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     stressMode = 'policy',
     rateType = 'floating',
     dsrRepaymentMethod = 'equalPrincipal',
+    graceMonths: graceMonthsRaw = DSR_GRACE_MONTHS_DEFAULT,
   } = input;
 
   const firstTimeBuyer = houseCount === 0 && Boolean(input.firstTimeBuyer);
   const realDemand = houseCount === 0 && Boolean(input.realDemand);
   const dispositionPlanned =
     Boolean(dispositionPlannedRaw) && houseCount === 1;
+  const graceMonths = clampGraceMonths(graceMonthsRaw);
 
   const credit = CREDIT_MAP[creditState];
   const contractRate = input.contractRate ?? credit.rate;
@@ -197,11 +212,13 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     annualRepayCapacity,
     assessmentRate,
     30,
+    graceMonths,
   );
   const dsrCapacityEqualPayment = dsrLoanCapacityEqualPayment(
     annualRepayCapacity,
     assessmentRate,
     30,
+    graceMonths,
   );
   const dsrCapacity =
     dsrRepaymentMethod === 'equalPayment'
@@ -306,6 +323,17 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     zoneCap,
   });
 
+  // 엑셀·은행과 동일: 적용 대출액의 연평균상환(산정금리)÷소득.
+  // DSR 한도액(dsrCapacity)으로 나누면 정의상 목표 DSR%에 수렴하므로 쓰지 않음.
+  const stressDsrRatioValue = stressDsrRatio(
+    loanAmt,
+    annualIncome,
+    assessmentRate,
+    30,
+    graceMonths,
+    dsrRepaymentMethod,
+  );
+
   return {
     bidCapacity: price,
     ltvApplied: ltv,
@@ -328,5 +356,7 @@ export function calcEntryMatch(input: EntryMatchInput): EntryMatchResult {
     stressNotice,
     annualRepayCapacity,
     dsrRepaymentMethod,
+    graceMonths,
+    stressDsrRatio: stressDsrRatioValue,
   };
 }
