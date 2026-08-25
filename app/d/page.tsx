@@ -9,7 +9,7 @@ import { RiskRow } from '@/components/ui/RiskRow';
 import { Badge } from '@/components/ui/Badge';
 import { BounceDots } from '@/components/ui/BounceDots';
 import { Disclaimer } from '@/components/ui/Disclaimer';
-import { resolveBidLoanRate, resolveBidMargin, yieldLabelText, yieldTierClass, DEFAULT_BID_MARGIN } from '@/lib/calc/bidCalculator';
+import { resolveBidLoanRate, resolveBidMargin, resolveBidPrepayRate, yieldLabelText, yieldTierClass, DEFAULT_BID_MARGIN } from '@/lib/calc/bidCalculator';
 import { convergeBid } from '@/lib/calc/bidConverge';
 import {
   BuildingVatSection,
@@ -202,6 +202,9 @@ export default function BidCalcPage() {
   const [loanRate, setLoanRate] = useState(() =>
     resolveBidLoanRate(saved?.loanRate),
   );
+  const [prepayRate, setPrepayRate] = useState(() =>
+    resolveBidPrepayRate(saved?.prepayRate),
+  );
   const [margin, setMargin] = useState(() => resolveBidMargin(saved?.margin));
   const [marginDraft, setMarginDraft] = useState(() =>
     resolveBidMargin(saved?.margin).toFixed(2),
@@ -229,6 +232,7 @@ export default function BidCalcPage() {
       setSellPrice(formatComma(s.sellPrice));
       setMonths(String(s.months));
       setLoanRate(resolveBidLoanRate(s.loanRate));
+      setPrepayRate(resolveBidPrepayRate(s.prepayRate));
       const nextMargin = resolveBidMargin(s.margin);
       setMargin(nextMargin);
       setMarginDraft(nextMargin.toFixed(2));
@@ -377,6 +381,7 @@ export default function BidCalcPage() {
       sellPrice: sellPriceWon,
       months: m,
       loanRate: loanRate / 100,
+      prepayRate: prepayRate / 100,
       margin: margin / 100,
       conditionalExtra: otherConditionalExtra,
       buildingVat: buildingVatWon,
@@ -395,6 +400,7 @@ export default function BidCalcPage() {
     sellPriceWon,
     months,
     loanRate,
+    prepayRate,
     margin,
     otherConditionalExtra,
     buildingVatWon,
@@ -482,6 +488,7 @@ export default function BidCalcPage() {
       sellPrice: sellPriceWon,
       months: Math.min(6, Math.max(1, parseFloat(months) || 6)),
       loanRate,
+      prepayRate,
       margin,
       conditionalMan: conditionalManForSave(
         conditionalWonFields,
@@ -499,6 +506,7 @@ export default function BidCalcPage() {
       sellPriceWon,
       months,
       loanRate,
+      prepayRate,
       margin,
       conditionalWonFields,
       officialPriceWon,
@@ -520,6 +528,7 @@ export default function BidCalcPage() {
           sellPrice: payload.sellPrice,
           months: payload.months,
           loanRate: payload.loanRate,
+          prepayRate: payload.prepayRate,
           margin: payload.margin,
           unpaidMgmtFeeMan: payload.conditionalMan.unpaidMgmtFeeMan,
           evictionCostMan: payload.conditionalMan.evictionCostMan,
@@ -708,6 +717,29 @@ export default function BidCalcPage() {
             <p className="field-hint">
               제1장의 신용등급은 추정치였습니다. 여기서는 실제 받은(또는 예상)
               대출조건을 입력하세요.
+            </p>
+          </div>
+          <div className="field calc-range-field">
+            <label htmlFor="prepayRate">
+              중도상환수수료율{' '}
+              <span className="range-val">{prepayRate.toFixed(1)}%</span>
+            </label>
+            <input
+              id="prepayRate"
+              type="range"
+              min={0}
+              max={2}
+              step={0.1}
+              value={prepayRate}
+              onChange={(e) => setPrepayRate(parseFloat(e.target.value))}
+            />
+            <div className="range-ticks">
+              <span>0.0%</span>
+              <span>2.0%</span>
+            </div>
+            <p className="field-hint">
+              대출 약정의 중도상환수수료율을 입력하세요. 적용기간은 36개월로
+              가정합니다.
             </p>
           </div>
           <div className="field calc-range-field">

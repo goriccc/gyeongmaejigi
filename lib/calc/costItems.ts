@@ -181,7 +181,7 @@ export function calcCostItems(
     {
       key: 'prepay',
       name: '중도상환수수료',
-      note: '대출원금 × 수수료율 × (적용기간 − 보유개월) ÷ 적용기간 — 적용기간 36개월 가정치',
+      note: '대출원금 × 수수료율 × (적용기간 − 보유개월) ÷ 적용기간 — 위 중도상환수수료율 슬라이더에 연동 (적용기간 36개월)',
       amount: prepayFee,
       rate: prepayRate,
       kind: 'required',

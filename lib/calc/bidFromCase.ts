@@ -4,6 +4,7 @@ import type { CaseFile } from '@/types/case';
 import {
   DEFAULT_BID_LOAN_RATE,
   DEFAULT_BID_MARGIN,
+  resolveBidPrepayRate,
 } from './bidCalculator';
 import { convergeBid } from './bidConverge';
 import {
@@ -119,6 +120,7 @@ export function stubBidCalcFromWinningBid(winningBidWon: number): BidCalcSaved {
     sellPrice: 0,
     months: 6,
     loanRate: DEFAULT_BID_LOAN_RATE,
+    prepayRate: resolveBidPrepayRate(),
     margin: DEFAULT_BID_MARGIN,
     bidPrice: winningBidWon,
     financeFreeDetailed: 0,
@@ -167,6 +169,7 @@ export function bidResultFromSaved(
     sellPrice: saved.sellPrice,
     months: saved.months,
     loanRate: saved.loanRate / 100,
+    prepayRate: resolveBidPrepayRate(saved.prepayRate) / 100,
     margin: saved.margin / 100,
     conditionalExtra,
     buildingVat,

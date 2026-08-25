@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/ui/Section';
+import { Disclaimer } from '@/components/ui/Disclaimer';
 import { RepaymentMethodGuideModal } from '@/components/ui/RepaymentMethodGuideModal';
 import { ResultPanel } from '@/components/ui/ResultPanel';
 import { Badge } from '@/components/ui/Badge';
@@ -1088,6 +1089,12 @@ export default function EntryMatchPage() {
             </div>
           </div>
         </div>
+        <Disclaimer>
+          본 수치는 입찰 전 추정용이며, 은행·상품·심사 기준에 따라 실제 대출
+          한도·승인 여부와 다를 수 있습니다. 실제 대출금리·연소득·기존부채
+          입력값에 민감하며, 입력 오류나 미반영 부채가 있으면 결과가 크게
+          달라질 수 있습니다.
+        </Disclaimer>
       </Section>
 
       <ResultPanel

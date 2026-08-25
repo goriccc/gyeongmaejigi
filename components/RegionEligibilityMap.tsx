@@ -307,24 +307,26 @@ export function RegionEligibilityMap({
             대출 사실상 불가
           </span>
         </div>
-        <p className="s-note" style={{ marginBottom: 6 }}>
-          2025.6.27·10.15 부동산대책 기준, 수도권(서울·경기·인천)은
-          조정대상지역 지정 여부와 무관하게 전역이 다주택 대출금지 대상입니다.
-          지방은 이 대책 대상이 아니지만, 3주택 이상은 취득세 8% 중과가 전국
-          공통으로 적용됩니다.
-        </p>
-        <p className="s-note" style={{ marginBottom: 6 }}>
-          경매는 경쟁입찰입니다. 취득세가 8%p 높으면 그만큼 입찰 여력이 줄어
-          일반세율 경쟁자를 이기기 어려워질 수 있습니다 — &quot;대출이
-          된다&quot;와 &quot;경쟁력이 있다&quot;는 다릅니다.
-        </p>
-        <p className="s-note" style={{ marginBottom: 0 }}>
-          처분조건부·생애최초·서민실수요자는 LTV·대출 가능 여부에 영향을 줄 수
-          있습니다. 저가주택 특례는 취득세에만 적용되며, 수도권 다주택자
-          대출금지는 예외 없이 그대로 적용됩니다. &quot;해당함&quot;으로
-          선택하면 타일 하단에 기준 공시가격(수도권 1억원 / 지방 2억원)도 함께
-          표시됩니다.
-        </p>
+        <ul className="rule-panel-list">
+          <li>
+            2025.6.27·10.15 부동산대책 기준, 수도권(서울·경기·인천)은
+            조정대상지역 지정 여부와 무관하게 전역이 다주택 대출금지
+            대상입니다. 지방은 이 대책 대상이 아니지만, 3주택 이상은 취득세
+            8% 중과가 전국 공통으로 적용됩니다.
+          </li>
+          <li>
+            경매는 경쟁입찰입니다. 취득세가 8%p 높으면 그만큼 입찰 여력이
+            줄어 일반세율 경쟁자를 이기기 어려워질 수 있습니다 — &quot;대출이
+            된다&quot;와 &quot;경쟁력이 있다&quot;는 다릅니다.
+          </li>
+          <li>
+            처분조건부·생애최초·서민실수요자는 LTV·대출 가능 여부에 영향을 줄
+            수 있습니다. 저가주택 특례는 취득세에만 적용되며, 수도권 다주택자
+            대출금지는 예외 없이 그대로 적용됩니다. &quot;해당함&quot;으로
+            선택하면 타일 하단에 기준 공시가격(수도권 1억원 / 지방 2억원)도
+            함께 표시됩니다.
+          </li>
+        </ul>
       </div>
 
       <div className="region-map-flex">
@@ -355,82 +357,91 @@ export function RegionEligibilityMap({
 
       <div className="region-list">
         {disposition ? (
-          <>
-            <span style={{ color: 'var(--brass-deep)' }}>
-              처분조건부(일시적 2주택) 적용 중 — 무주택자와 동일하게 취급되어
-              전국 대출·세금 모두 정상 적용됩니다.
-            </span>
-            <br />
-          </>
+          <p className="region-list-callout region-list-callout-brass">
+            처분조건부(일시적 2주택) 적용 중 — 무주택자와 동일하게 취급되어
+            전국 대출·세금 모두 정상 적용됩니다.
+          </p>
         ) : (
           <>
             {houseCount >= 1 ? (
-              <>
-                <span style={{ color: 'var(--slate)' }}>
-                  수도권(서울·경기·인천)은 조정대상지역 지정 여부와 무관하게
-                  전역이 2025.6.27 대책 대출금지 대상입니다.
-                </span>
-                <br />
-              </>
+              <p className="region-list-callout">
+                수도권(서울·경기·인천)은 조정대상지역 지정 여부와 무관하게
+                전역이 2025.6.27 대책 대출금지 대상입니다.
+              </p>
             ) : null}
             {lowPrice ? (
-              <>
-                <span style={{ color: 'var(--brass-deep)' }}>
-                  저가주택 특례 적용 중 — 취득세 일반세율(중과 해소)만
-                  적용됩니다. 수도권 다주택자 대출금지는 예외 없이 그대로
-                  적용됩니다.
-                </span>
-                <br />
-              </>
+              <p className="region-list-callout region-list-callout-brass">
+                저가주택 특례 적용 중 — 취득세 일반세율(중과 해소)만
+                적용됩니다. 수도권 다주택자 대출금지는 예외 없이 그대로
+                적용됩니다.
+              </p>
             ) : null}
           </>
         )}
-        {byStatus.blocked.length > 0 ? (
-          <>
-            <b>대출 사실상 불가 (수도권, 6.27대책):</b>{' '}
-            {byStatus.blocked.join(', ')}
-            <br />
-          </>
-        ) : null}
-        {byStatus.warn.length > 0 ? (
-          <>
-            <b>대출은 가능하나 불리 (세금 중과 또는 LTV 축소):</b>{' '}
-            {byStatus.warn.join(', ')}
-            <br />
-          </>
-        ) : null}
-        <b>완전 가능:</b>{' '}
-        {byStatus.ok.length > 0 ? byStatus.ok.join(', ') : '해당 없음'}
-        <br />
-        <span style={{ color: 'var(--slate)' }}>
-          지방의 LTV는 정부 상한이 없어 은행 자율입니다 — 위 계산기의 LTV
-          수치는 참고치이며 확정값이 아닙니다.
-        </span>
-        {PARTIAL_REGIONS.경기 ? (
-          <>
-            <br />
-            <span style={{ color: 'var(--slate)' }}>
-              취득세 규제구분 참고 — 경기 조정대상지역 세부:{' '}
-              {PARTIAL_REGIONS.경기.join(' · ')}
+
+        <ul className="region-list-status">
+          {byStatus.blocked.length > 0 ? (
+            <li>
+              <span className="region-list-label">
+                대출 사실상 불가 (수도권, 6.27대책)
+              </span>
+              <span className="region-list-value">
+                {byStatus.blocked.join(', ')}
+              </span>
+            </li>
+          ) : null}
+          {byStatus.warn.length > 0 ? (
+            <li>
+              <span className="region-list-label">
+                대출은 가능하나 불리 (세금 중과 또는 LTV 축소)
+              </span>
+              <span className="region-list-value">
+                {byStatus.warn.join(', ')}
+              </span>
+            </li>
+          ) : null}
+          <li>
+            <span className="region-list-label">완전 가능</span>
+            <span className="region-list-value">
+              {byStatus.ok.length > 0 ? byStatus.ok.join(', ') : '해당 없음'}
             </span>
-          </>
-        ) : null}
+          </li>
+        </ul>
+
+        <ul className="region-list-notes">
+          <li>
+            지방의 LTV는 정부 상한이 없어 은행 자율입니다.
+          </li>
+          <li>
+            위 계산기의 LTV 수치는 참고치이며 확정값이 아닙니다.
+          </li>
+          {PARTIAL_REGIONS.경기 ? (
+            <li>
+              <span className="region-list-label">
+                취득세 규제구분 참고 — 경기 조정대상지역 세부
+              </span>
+              <span className="region-list-value">
+                {PARTIAL_REGIONS.경기.join(' · ')}
+              </span>
+            </li>
+          ) : null}
+        </ul>
       </div>
 
-      <p className="s-note" style={{ marginTop: 14 }}>
-        기준일 {REGULATED_AS_OF} · 국토교통부 고시 기준 (2026.7.1 화성시
-        동탄구·용인시 기흥구·구리시 추가 지정 반영) ·{' '}
-        <a
-          href="https://www.molit.go.kr"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: 'var(--brass-deep)', textDecoration: 'underline' }}
-        >
-          국토부에서 최신 고시 확인
-        </a>{' '}
-        — 지도는 시·도 단위 스키매틱 참고용이며, 실제 소재지 단위 확인은 위
-        링크에서 반드시 재확인하세요.
-      </p>
+      <ul className="region-list-notes region-list-source">
+        <li>
+          기준일 {REGULATED_AS_OF} · 국토교통부 고시 기준 (2026.7.1 화성시
+          동탄구·용인시 기흥구·구리시 추가 지정 반영) ·{' '}
+          <a
+            href="https://www.molit.go.kr"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="region-list-link"
+          >
+            국토부에서 최신 고시 확인
+          </a>
+        </li>
+      </ul>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   marginTierClass,
   resolveBidLoanRate,
   resolveBidMargin,
+  resolveBidPrepayRate,
   yieldLabelText,
   yieldTier,
   yieldTierClass,
@@ -135,7 +136,7 @@ describe('yieldTier', () => {
   });
 });
 
-describe('resolveBidLoanRate / resolveBidMargin', () => {
+describe('resolveBidLoanRate / resolveBidMargin / resolveBidPrepayRate', () => {
   it('기본값·레거시 마이그레이션', () => {
     expect(resolveBidLoanRate()).toBe(5);
     expect(resolveBidLoanRate(4.5)).toBe(5);
@@ -143,6 +144,8 @@ describe('resolveBidLoanRate / resolveBidMargin', () => {
     expect(resolveBidMargin()).toBe(10);
     expect(resolveBidMargin(5.5)).toBe(10);
     expect(resolveBidMargin(8)).toBe(8);
+    expect(resolveBidPrepayRate()).toBe(0.4);
+    expect(resolveBidPrepayRate(0.5)).toBe(0.5);
   });
 });
 

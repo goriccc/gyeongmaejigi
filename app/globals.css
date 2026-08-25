@@ -3276,14 +3276,80 @@ table.loan-table td {
   display: inline-block;
 }
 
-.region-list {
-  font-size: 12.5px;
-  line-height: 1.9;
+.rule-panel-list {
+  margin: 10px 0 0;
+  padding: 0 0 0 1.15em;
+  list-style: disc;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--slate);
 }
 
-.region-list b {
+.rule-panel-list li + li {
+  margin-top: 8px;
+}
+
+.region-list {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.region-list-callout {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--slate);
+}
+
+.region-list-callout-brass {
+  color: var(--brass-deep);
+}
+
+.region-list-status,
+.region-list-notes {
+  margin: 0;
+  padding: 0 0 0 1.15em;
+  list-style: disc;
+}
+
+.region-list-status {
+  margin-bottom: 12px;
+}
+
+.region-list-status li + li,
+.region-list-notes li + li {
+  margin-top: 8px;
+}
+
+.region-list-label {
+  display: block;
   font-family: var(--serif);
   font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.region-list-value {
+  display: block;
+  color: var(--slate);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.region-list-notes {
+  color: var(--slate);
+  font-size: 12px;
+}
+
+.region-list-source {
+  margin-top: 14px;
+}
+
+.region-list-link {
+  color: var(--brass-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 @media (max-width: 900px) {

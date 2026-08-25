@@ -33,6 +33,8 @@ export type ConvergeBidParams = {
   sellPrice: number;
   months: number;
   loanRate: number;
+  /** 중도상환수수료율(비율, 예: 0.0041) — 미전달 시 DEFAULT_PREPAY */
+  prepayRate?: number;
   margin: number;
   conditionalExtra: number;
   buildingVat: number;
@@ -116,6 +118,7 @@ function convergeBidPrice(
     sellPrice,
     months,
     loanRate,
+    prepayRate,
     conditionalExtra,
     propertySize = 'standard',
     exclusiveAreaM2,
@@ -148,7 +151,7 @@ function convergeBidPrice(
       loanPrincipal,
       months,
       loanRate,
-      undefined,
+      prepayRate,
       undefined,
       conditionalWithAutoFarm(
         bidPrice,
@@ -185,6 +188,7 @@ export function convergeBid(params: ConvergeBidParams): ConvergedBid {
     sellPrice,
     months,
     loanRate,
+    prepayRate,
     margin,
     conditionalExtra,
     buildingVat,
@@ -219,7 +223,7 @@ export function convergeBid(params: ConvergeBidParams): ConvergedBid {
     loanPrincipal,
     months,
     loanRate,
-    undefined,
+    prepayRate,
     undefined,
     conditionalWithAutoFarm(
       bidPrice,

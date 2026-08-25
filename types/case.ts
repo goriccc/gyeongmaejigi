@@ -252,6 +252,8 @@ export type CaseFile = {
     sellPrice: number;
     months: number;
     loanRate: number;
+    /** 중도상환수수료율 (% 단위, 예: 0.41) */
+    prepayRate?: number;
     margin: number;
     /** @deprecated 개랭 비용률 — 저장 호환용, 역산에 미사용 */
     costRate?: number;

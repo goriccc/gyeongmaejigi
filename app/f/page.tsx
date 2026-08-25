@@ -164,6 +164,7 @@ export default function LoanComparePage() {
           sellPrice: payload.sellPrice,
           months: payload.months,
           loanRate: saved?.loanRate ?? 5,
+          prepayRate: saved?.prepayRate,
           margin: saved?.margin ?? 10,
           bidPrice: payload.winningBidWon,
           effectiveSellPrice:

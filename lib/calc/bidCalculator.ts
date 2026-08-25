@@ -1,3 +1,4 @@
+import { DEFAULT_PREPAY } from '@/data/taxTable';
 import type { EntryMatchInputs } from '@/types/case';
 import { effectiveSellPrice } from './buildingVat';
 import {
@@ -16,6 +17,8 @@ import {
 /** 입찰가 계산 UI 기본값 (% 단위) */
 export const DEFAULT_BID_LOAN_RATE = 5;
 export const DEFAULT_BID_MARGIN = 10;
+/** 중도상환수수료율 UI 기본값 (% 단위) — 슬라이더 0.1% 단위에 맞춤 */
+export const DEFAULT_BID_PREPAY_RATE = 0.4;
 /** 이전 UI 기본값 — 저장값 마이그레이션용 */
 const LEGACY_BID_LOAN_RATE = 4.5;
 const LEGACY_BID_MARGIN = 5.5;
@@ -32,6 +35,11 @@ export function resolveBidMargin(saved?: number): number {
   return saved;
 }
 
+export function resolveBidPrepayRate(saved?: number): number {
+  if (saved == null) return DEFAULT_BID_PREPAY_RATE;
+  return saved;
+}
+
 export type BidCalcInput = {
   /** 매도가(원) */
   sellPrice: number;
@@ -39,6 +47,8 @@ export type BidCalcInput = {
   months: number;
   /** 대출이자율(비율, 예: 0.045) */
   loanRate: number;
+  /** 중도상환수수료율(비율, 예: 0.0041) */
+  prepayRate?: number;
   /** 목표 마진(비율) */
   margin: number;
   /** 조건부 추가비용 합계(원) — 입찰가에서 선차감 */
@@ -98,6 +108,7 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     sellPrice,
     months,
     loanRate,
+    prepayRate = DEFAULT_PREPAY.rate,
     margin,
     conditionalExtra = 0,
     buildingVat = 0,
@@ -118,7 +129,7 @@ export function calcBid(input: BidCalcInput): BidCalcResult {
     loanPrincipal,
     months,
     loanRate,
-    undefined,
+    prepayRate,
     undefined,
     {},
     null,
