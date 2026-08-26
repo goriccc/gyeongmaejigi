@@ -17,8 +17,8 @@ import {
 /** 입찰가 계산 UI 기본값 (% 단위) */
 export const DEFAULT_BID_LOAN_RATE = 5;
 export const DEFAULT_BID_MARGIN = 10;
-/** 중도상환수수료율 UI 기본값 (% 단위) — 슬라이더 0.1% 단위에 맞춤 */
-export const DEFAULT_BID_PREPAY_RATE = 0.4;
+/** 중도상환수수료율 UI 기본값 (% 단위) */
+export const DEFAULT_BID_PREPAY_RATE = 0.41;
 /** 이전 UI 기본값 — 저장값 마이그레이션용 */
 const LEGACY_BID_LOAN_RATE = 4.5;
 const LEGACY_BID_MARGIN = 5.5;

@@ -9,7 +9,7 @@ import { RiskRow } from '@/components/ui/RiskRow';
 import { Badge } from '@/components/ui/Badge';
 import { BounceDots } from '@/components/ui/BounceDots';
 import { Disclaimer } from '@/components/ui/Disclaimer';
-import { resolveBidLoanRate, resolveBidMargin, resolveBidPrepayRate, yieldLabelText, yieldTierClass, DEFAULT_BID_MARGIN } from '@/lib/calc/bidCalculator';
+import { resolveBidLoanRate, resolveBidMargin, resolveBidPrepayRate, yieldLabelText, yieldTierClass, DEFAULT_BID_LOAN_RATE, DEFAULT_BID_MARGIN, DEFAULT_BID_PREPAY_RATE } from '@/lib/calc/bidCalculator';
 import { convergeBid } from '@/lib/calc/bidConverge';
 import {
   BuildingVatSection,
@@ -155,6 +155,16 @@ function clampBidMarginPct(n: number): number {
   return Math.min(20, Math.max(3, Math.round(n * 100) / 100));
 }
 
+function clampBidLoanPct(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_BID_LOAN_RATE;
+  return Math.min(8, Math.max(2, Math.round(n * 100) / 100));
+}
+
+function clampBidPrepayPct(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_BID_PREPAY_RATE;
+  return Math.min(2, Math.max(0, Math.round(n * 100) / 100));
+}
+
 function parseWonInputField(value: string): number | undefined {
   if (value.trim() === '') return undefined;
   const n = parseNumberInput(value);
@@ -202,8 +212,14 @@ export default function BidCalcPage() {
   const [loanRate, setLoanRate] = useState(() =>
     resolveBidLoanRate(saved?.loanRate),
   );
+  const [loanRateDraft, setLoanRateDraft] = useState(() =>
+    resolveBidLoanRate(saved?.loanRate).toFixed(2),
+  );
   const [prepayRate, setPrepayRate] = useState(() =>
     resolveBidPrepayRate(saved?.prepayRate),
+  );
+  const [prepayRateDraft, setPrepayRateDraft] = useState(() =>
+    resolveBidPrepayRate(saved?.prepayRate).toFixed(2),
   );
   const [margin, setMargin] = useState(() => resolveBidMargin(saved?.margin));
   const [marginDraft, setMarginDraft] = useState(() =>
@@ -231,8 +247,12 @@ export default function BidCalcPage() {
     if (s) {
       setSellPrice(formatComma(s.sellPrice));
       setMonths(String(s.months));
-      setLoanRate(resolveBidLoanRate(s.loanRate));
-      setPrepayRate(resolveBidPrepayRate(s.prepayRate));
+      const nextLoan = resolveBidLoanRate(s.loanRate);
+      setLoanRate(nextLoan);
+      setLoanRateDraft(nextLoan.toFixed(2));
+      const nextPrepay = resolveBidPrepayRate(s.prepayRate);
+      setPrepayRate(nextPrepay);
+      setPrepayRateDraft(nextPrepay.toFixed(2));
       const nextMargin = resolveBidMargin(s.margin);
       setMargin(nextMargin);
       setMarginDraft(nextMargin.toFixed(2));
@@ -699,20 +719,52 @@ export default function BidCalcPage() {
           <div className="field calc-range-field">
             <label htmlFor="loanRate">
               대출이자율{' '}
-              <span className="range-val">{loanRate.toFixed(1)}%</span>
+              <span className="range-val">{loanRate.toFixed(2)}%</span>
             </label>
-            <input
-              id="loanRate"
-              type="range"
-              min={2}
-              max={8}
-              step={0.1}
-              value={loanRate}
-              onChange={(e) => setLoanRate(parseFloat(e.target.value))}
-            />
+            <div className="calc-range-slider-row">
+              <input
+                id="loanRate"
+                type="range"
+                min={2}
+                max={8}
+                step={0.01}
+                value={loanRate}
+                onChange={(e) => {
+                  const next = clampBidLoanPct(parseFloat(e.target.value));
+                  setLoanRate(next);
+                  setLoanRateDraft(next.toFixed(2));
+                }}
+              />
+              <label className="calc-range-direct" htmlFor="loanRateDirect">
+                <input
+                  id="loanRateDirect"
+                  type="text"
+                  inputMode="decimal"
+                  value={loanRateDraft}
+                  aria-label="대출이자율 직접 입력"
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d.]/g, '');
+                    setLoanRateDraft(raw);
+                    const n = parseFloat(raw);
+                    if (Number.isFinite(n) && n >= 2 && n <= 8) {
+                      setLoanRate(clampBidLoanPct(n));
+                    }
+                  }}
+                  onBlur={() => {
+                    const n = parseFloat(loanRateDraft);
+                    const next = clampBidLoanPct(
+                      Number.isFinite(n) ? n : loanRate,
+                    );
+                    setLoanRate(next);
+                    setLoanRateDraft(next.toFixed(2));
+                  }}
+                />
+                <span className="calc-range-direct-unit">%</span>
+              </label>
+            </div>
             <div className="range-ticks">
-              <span>2.0%</span>
-              <span>8.0%</span>
+              <span>2.00%</span>
+              <span>8.00%</span>
             </div>
             <p className="field-hint">
               제1장의 신용등급은 추정치였습니다. 여기서는 실제 받은(또는 예상)
@@ -722,20 +774,52 @@ export default function BidCalcPage() {
           <div className="field calc-range-field">
             <label htmlFor="prepayRate">
               중도상환수수료율{' '}
-              <span className="range-val">{prepayRate.toFixed(1)}%</span>
+              <span className="range-val">{prepayRate.toFixed(2)}%</span>
             </label>
-            <input
-              id="prepayRate"
-              type="range"
-              min={0}
-              max={2}
-              step={0.1}
-              value={prepayRate}
-              onChange={(e) => setPrepayRate(parseFloat(e.target.value))}
-            />
+            <div className="calc-range-slider-row">
+              <input
+                id="prepayRate"
+                type="range"
+                min={0}
+                max={2}
+                step={0.01}
+                value={prepayRate}
+                onChange={(e) => {
+                  const next = clampBidPrepayPct(parseFloat(e.target.value));
+                  setPrepayRate(next);
+                  setPrepayRateDraft(next.toFixed(2));
+                }}
+              />
+              <label className="calc-range-direct" htmlFor="prepayRateDirect">
+                <input
+                  id="prepayRateDirect"
+                  type="text"
+                  inputMode="decimal"
+                  value={prepayRateDraft}
+                  aria-label="중도상환수수료율 직접 입력"
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d.]/g, '');
+                    setPrepayRateDraft(raw);
+                    const n = parseFloat(raw);
+                    if (Number.isFinite(n) && n >= 0 && n <= 2) {
+                      setPrepayRate(clampBidPrepayPct(n));
+                    }
+                  }}
+                  onBlur={() => {
+                    const n = parseFloat(prepayRateDraft);
+                    const next = clampBidPrepayPct(
+                      Number.isFinite(n) ? n : prepayRate,
+                    );
+                    setPrepayRate(next);
+                    setPrepayRateDraft(next.toFixed(2));
+                  }}
+                />
+                <span className="calc-range-direct-unit">%</span>
+              </label>
+            </div>
             <div className="range-ticks">
-              <span>0.0%</span>
-              <span>2.0%</span>
+              <span>0.00%</span>
+              <span>2.00%</span>
             </div>
             <p className="field-hint">
               대출 약정의 중도상환수수료율을 입력하세요. 적용기간은 36개월로
