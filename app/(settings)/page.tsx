@@ -974,7 +974,7 @@ export default function EntryMatchPage() {
             className="dsr-help-link dsr-capacity-card-help"
             onClick={() => setRepaymentGuideOpen(true)}
           >
-            원금·원리금 차이
+            원금균등·원리금균등 차이
           </button>
           <button
             type="button"
