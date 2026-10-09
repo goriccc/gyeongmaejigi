@@ -77,6 +77,12 @@ const RIGHTS_SYSTEM_PROMPT_CORE = `당신은 경매지기의 권리분석 어시
    - 법정지상권·분묘기지권·농취증 등 위험·주의 기재가 있으면 status \`warning\`, note에 해당 기재 요지를 적으세요.
    - 현황조사서의 **폐문부재만으로는** 이 항목을 확인필요로 두지 마세요.
 8. **토지별도등기(지상권)** — 제공된 문서(건물 등기부등본·매각물건명세서·현황조사서·토지등기)에서 토지 별도등기, 구분지상권, 지상권, 지역권 등 토지 이용 제한 등기 언급이 있는지 확인한 뒤, 아래 기준으로 status와 note를 작성하세요.
+   - **집합건물(아파트·다세대·연립·오피스텔 등 구분건물) 규칙 — 최우선 적용:** 건물 등기부에 대지권 표시가 있는 집합건물은 토지 권리가 대지권으로 건물 등기부에 함께 표시되므로 **토지등기를 별도로 요구하지 마세요**(토지등기 열람 권유·"토지등기 미제공으로 확인 불가" 금지). 아래 세 조건을 모두 만족하면 status는 반드시 \`ok\`(양호):
+     1. 건물 등기부 대지권 표시란에 별도등기 기재가 없거나, 있더라도 **말소된 것**(말소선·"별도등기 말소" 등기 등)으로 확인됨
+     2. 매각물건명세서의 **'매각에 따라 설정된 것으로 보는 지상권의 개요'**란이 공란(또는 "해당없음")
+     3. 사용자가 토지별도등기·지상권·대지권을 따로 언급하지 않음(\`userMentioned\` false)
+     note에는 "집합건물(대지권 등기)로 토지등기 별도 확인 불필요 — 대지권 별도등기 [없음/말소 확인], 지상권 개요란 공란" 취지로 짧게 적으세요. 대지권 별도등기가 **말소되지 않고 현재 유효**하거나, 지상권 개요란에 기재가 있으면 \`warning\`으로 두고 그 내용을 note에 적으세요.
+   - **토지등기가 의미 있는 경우:** 단독주택·다가구주택 등 토지와 건물 등기가 따로 있는 물건에서만 아래 토지등기 관련 기준을 적용하세요.
    - **토지등기 미제공이어도 양호인 경우(중요):** 제공된 **등기부등본·매각물건명세서·현황조사서**에 토지별도등기·지상권·구분지상권·지역권 관련 기재·언급이 **전혀 없으면** status는 반드시 \`ok\`(양호). note에 "제공 문서에 토지별도등기·지상권 관련 기재가 확인되지 않음" 취지로 표시하세요. 토지등기만 없다고 해서 \`warning\`·"토지등기 미제공으로 확인 불가"로 두지 마세요(사용자가 관련 기재가 없어 토지등기를 올리지 않은 경우가 흔함).
    - **토지등기가 필요할 때:** 등기부등본·매각물건명세서·현황조사서 중 하나에 토지별도등기·지상권 등 관련 기재가 있는데 토지등기가 미제공이면 status \`warning\`, note에 어느 문서에 어떤 취지 기재가 있는지와 토지등기 확인이 필요하다는 점을 명시하세요.
    - 토지등기·기타 제공 문서에 관련 기재가 없으면 status \`ok\`, note에 "토지별도등기·지상권 관련 기재가 확인되지 않음"으로 표시.
@@ -180,7 +186,7 @@ const RIGHTS_SYSTEM_PROMPT_CORE = `당신은 경매지기의 권리분석 어시
 
 # 문서 부족 시
 
-네 문서 중 하나라도 없으면, 그 문서가 있어야만 확인 가능한 항목은 status를 "warning"으로, note에 "○○ 문서 미제공으로 확인 불가"라고 명시하세요. 단, **토지별도등기(지상권)** 항목은 예외: 등기부등본·매각물건명세서·현황조사서에 관련 언급이 없으면 토지등기 미제공만으로 warning 하지 말고 \`ok\`로 두세요. 절대 다른 문서의 정보로 추측해서 채우지 마세요. 현황조사서 미제공만으로 폐문부재를 가정해 확인필요로 두지 마세요.
+네 문서 중 하나라도 없으면, 그 문서가 있어야만 확인 가능한 항목은 status를 "warning"으로, note에 "○○ 문서 미제공으로 확인 불가"라고 명시하세요. 단, **토지별도등기(지상권)** 항목은 예외: 등기부등본·매각물건명세서·현황조사서에 관련 언급이 없으면 토지등기 미제공만으로 warning 하지 말고 \`ok\`로 두세요. 집합건물(대지권 등기)은 토지등기가 별도로 필요하지 않으므로 8번의 집합건물 규칙을 따르세요. 절대 다른 문서의 정보로 추측해서 채우지 마세요. 현황조사서 미제공만으로 폐문부재를 가정해 확인필요로 두지 마세요.
 documentsProvided / documentsMissing에는 "등기부등본", "토지등기", "매각물건명세서", "현황조사서" 중 해당하는 이름을 사용하세요.`;
 
 export const RIGHTS_SYSTEM_PROMPT = `${RIGHTS_SYSTEM_PROMPT_CORE}
@@ -283,6 +289,42 @@ function noteSaysHasOpposingPower(note: string): boolean {
   return /대항력\s*(이\s*)?(있|있는)|대항력이\s*있는|인수\s*위험/.test(note);
 }
 
+function userMentionsLandSeparate(judgment: string): boolean {
+  return /토지\s*별도|별도\s*등기|지상권|지역권|대지권/.test(judgment);
+}
+
+const COLLECTIVE_BUILDING_LAND_OK_NOTE =
+  '집합건물(대지권 등기)로 토지등기 별도 확인 불필요 — 대지권 별도등기 말소 확인(또는 기재 없음), 매각물건명세서 지상권 개요란 공란.';
+
+/**
+ * 집합건물 note가 "대지권 별도등기 없음/말소 + 지상권 기재 없음" 취지인지.
+ * 토지등기 열람 권유만 남은 warning을 양호로 보정할 때 사용합니다.
+ */
+export function noteSaysCollectiveLandClear(note: string): boolean {
+  if (!/대지권|집합건물|구분건물|다세대|아파트|연립|오피스텔/.test(note)) {
+    return false;
+  }
+  if (
+    /별도\s*등기/.test(note) &&
+    !/별도\s*등기.{0,80}(말소|소멸)|(말소|소멸).{0,40}별도\s*등기|소멸한\s*것으로/.test(
+      note,
+    )
+  ) {
+    return false;
+  }
+  if (/(현재|여전히).{0,20}(유효|존속|남아)/.test(note)) return false;
+  if (/지상권의\s*개요.{0,30}(기재|내용)\s*(있|이\s*있)/.test(note)) {
+    return false;
+  }
+  if (
+    /(지상권|지역권)/.test(note) &&
+    !/(지상권|지역권).{0,40}(확인되지\s*않|없|공란|해당\s*없)/.test(note)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function noteSaysAgreesWithUser(note: string): boolean {
   return /이\s*점은\s*일치|사용자도.*일치|판단과\s*일치|사용자\s*판단과\s*일치/.test(
     note,
@@ -330,6 +372,7 @@ export function parseRightsAnalysisJson(
 
   const mentionedFromJudgment = userMentionsPriorityRepayment(judgment);
   const opposingMentioned = userMentionsOpposingPower(judgment);
+  const landMentioned = userMentionsLandSeparate(judgment);
   const allowed = new Set(['ok', 'warning', 'mismatch']);
   const riskFlags: RiskFlag[] = (data.riskFlags ?? [])
     .filter((f) => f?.label && f?.note)
@@ -373,6 +416,18 @@ export function parseRightsAnalysisJson(
         status = 'ok';
         note =
           '제공된 등기부등본·매각물건명세서·현황조사서에 토지별도등기·지상권 관련 기재가 확인되지 않음.';
+      }
+
+      // 집합건물: 대지권 별도등기 없음/말소 + 지상권 개요 공란 + 사용자 미언급 → ok
+      if (
+        isLandSeparate &&
+        status === 'warning' &&
+        !landMentioned &&
+        f.userMentioned !== true &&
+        noteSaysCollectiveLandClear(note)
+      ) {
+        status = 'ok';
+        note = COLLECTIVE_BUILDING_LAND_OK_NOTE;
       }
 
       let eligibility: RiskFlag['eligibility'] = null;
