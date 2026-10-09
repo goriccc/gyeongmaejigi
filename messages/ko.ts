@@ -191,7 +191,7 @@ export const ko = {
       '낙찰가와 상담사 조건을 입력하면 LTV·금리·중도상환 기준으로 비교합니다.',
     winningBid: '낙찰가',
     expectedSell: '예상 매도가',
-    months: '보유기간',
+    months: '보유기간(월)',
     noSellNote:
       '예상 매도가가 없어 낙찰가 기준 대출비용만 반영한 세후 수익입니다.',
     evictionOnly:
