@@ -42,7 +42,8 @@ export type ParsedRightsFields = {
 };
 
 export type ModelAnalysisResult = {
-  model: 'claude-opus-5';
+  /** 이전 저장분은 claude-opus-5 */
+  model: 'claude-sonnet-5-5' | 'claude-opus-5';
   label: string;
   summary: string;
   expertGuide?: string;
@@ -59,7 +60,8 @@ export type RightsAnalysisCompare = {
 };
 
 export type EvictionModelResult = {
-  model: 'claude-sonnet-5';
+  /** 이전 저장분은 claude-sonnet-5 */
+  model: 'claude-sonnet-5-5' | 'claude-sonnet-5';
   label: string;
   crisisFlag: boolean;
   crisisNote: string | null;

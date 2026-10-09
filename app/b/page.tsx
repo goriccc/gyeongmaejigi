@@ -8,6 +8,7 @@ import { useCases } from '@/lib/hooks/useCases';
 import { buildChecklist } from '@/lib/checklist';
 import { mergeRiskFlagsForChecklist } from '@/lib/llm/rightsPrompt';
 import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
+import { RIGHTS_CLIENT_TIMEOUT_MS } from '@/lib/llm/fetchTimeout';
 import { afterRiskFlagsSaved } from '@/lib/stage';
 import { ko } from '@/messages/ko';
 import type {
@@ -90,7 +91,7 @@ export default function RightsAnalysisPage() {
       const res = await fetch('/api/rights-analysis', {
         method: 'POST',
         body: form,
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(RIGHTS_CLIENT_TIMEOUT_MS),
       });
 
       let latest: RightsAnalysisCompare = {
@@ -116,9 +117,15 @@ export default function RightsAnalysisPage() {
         }
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : '분석 중 오류가 발생했습니다.',
-      );
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        setError(
+          `요청 시간 초과 (${Math.round(RIGHTS_CLIENT_TIMEOUT_MS / 1000)}초) — 첨부 PDF 수를 줄여 다시 시도해 주세요.`,
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : '분석 중 오류가 발생했습니다.',
+        );
+      }
     } finally {
       setLoading(false);
     }

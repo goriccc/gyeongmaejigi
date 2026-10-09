@@ -8,7 +8,7 @@ import type { PdfAttachment, RightsLlmPayload } from '@/lib/llm/rightsPrompt';
 import type { ModelAnalysisResult, ParsedRightsFields } from '@/types/case';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 async function runOne(
   fn: () => Promise<ParsedRightsFields>,

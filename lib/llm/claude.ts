@@ -5,9 +5,9 @@ import {
   type ParsedRightsAnalysis,
   type RightsLlmPayload,
 } from './rightsPrompt';
-import { fetchWithTimeout, LLM_TIMEOUT_MS } from './fetchTimeout';
+import { fetchWithTimeout, RIGHTS_LLM_TIMEOUT_MS } from './fetchTimeout';
 
-const CLAUDE_MODEL = 'claude-opus-5';
+const CLAUDE_MODEL = 'claude-sonnet-5-5';
 
 type ClaudeContent =
   | { type: 'text'; text: string }
@@ -21,8 +21,9 @@ type ClaudeContent =
     };
 
 /**
- * Claude Opus 5는 temperature 비기본값을 거부합니다(400).
- * 권리분석의 낮은 창의성은 effort: medium + thinking disabled로 근사합니다.
+ * Claude Sonnet 5.5는 temperature 비기본값을 거부합니다(400).
+ * 권리분석은 adaptive thinking + effort high로 실행합니다.
+ * thinking 토큰이 max_tokens에 포함되므로 응답 JSON보다 여유 있게 잡습니다.
  */
 export async function analyzeWithClaude(
   payload: RightsLlmPayload,
@@ -61,10 +62,8 @@ export async function analyzeWithClaude(
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 8192,
-        // temperature 사용 불가 → effort로 보수적 분석
-        thinking: { type: 'disabled' },
-        output_config: { effort: 'medium' },
+        max_tokens: 16384,
+        output_config: { effort: 'high' },
         system: RIGHTS_SYSTEM_PROMPT,
         messages: [
           {
@@ -74,7 +73,7 @@ export async function analyzeWithClaude(
         ],
       }),
     },
-    LLM_TIMEOUT_MS,
+    RIGHTS_LLM_TIMEOUT_MS,
   );
 
   if (!res.ok) {

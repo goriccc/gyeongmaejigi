@@ -4,12 +4,12 @@ import {
   parseEvictionJson,
   type EvictionLlmResult,
 } from './evictionPrompt';
-import { fetchWithTimeout, LLM_TIMEOUT_MS } from './fetchTimeout';
+import { fetchWithTimeout, EVICTION_LLM_TIMEOUT_MS } from './fetchTimeout';
 
-const CLAUDE_MODEL = 'claude-sonnet-5';
+const CLAUDE_MODEL = 'claude-sonnet-5-5';
 
 /**
- * Claude Sonnet 5는 temperature 비기본값을 거부합니다(400).
+ * Claude Sonnet 5.5는 temperature 비기본값을 거부합니다(400).
  * 명도코칭의 높은 창의성(요청 temperature 0.7)은 effort: high로 근사합니다.
  */
 export async function analyzeEvictionWithClaude(
@@ -31,7 +31,7 @@ export async function analyzeEvictionWithClaude(
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 4096,
+        max_tokens: 8192,
         // temperature: 0.7 사용 불가 → adaptive thinking + high effort
         output_config: { effort: 'high' },
         system: EVICTION_SYSTEM_PROMPT,
@@ -43,7 +43,7 @@ export async function analyzeEvictionWithClaude(
         ],
       }),
     },
-    LLM_TIMEOUT_MS,
+    EVICTION_LLM_TIMEOUT_MS,
   );
 
   if (!res.ok) {

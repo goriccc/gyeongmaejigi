@@ -6,7 +6,7 @@ import type { EvictionLlmResult } from '@/lib/llm/evictionPrompt';
 import type { EvictionModelResult } from '@/types/case';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 async function runOne(
   fn: () => Promise<EvictionLlmResult>,

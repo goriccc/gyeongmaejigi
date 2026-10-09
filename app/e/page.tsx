@@ -12,6 +12,7 @@ import {
 } from '@/lib/eviction/conversationLog';
 import { readJsonSafe } from '@/lib/http/readJsonSafe';
 import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
+import { EVICTION_CLIENT_TIMEOUT_MS } from '@/lib/llm/fetchTimeout';
 import { ko } from '@/messages/ko';
 import { isContentProofStale } from '@/lib/eviction/contentProofStale';
 import { normalizeCaseTrack } from '@/lib/caseUtils';
@@ -216,7 +217,7 @@ export default function EvictionCoachPage() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ conversation: payload }),
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(EVICTION_CLIENT_TIMEOUT_MS),
       });
 
       let latest: EvictionCoachCompare = {
@@ -242,7 +243,15 @@ export default function EvictionCoachPage() {
         }
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '분석 중 오류가 발생했습니다.');
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        setError(
+          `요청 시간 초과 (${Math.round(EVICTION_CLIENT_TIMEOUT_MS / 1000)}초) — 잠시 후 다시 시도해 주세요.`,
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : '분석 중 오류가 발생했습니다.',
+        );
+      }
     } finally {
       setLoading(false);
     }
