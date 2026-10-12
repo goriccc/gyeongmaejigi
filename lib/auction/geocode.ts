@@ -8,6 +8,8 @@ export type AddressGeo = GeoPoint & {
   ji?: string;
   mountain?: boolean;
   buildingName?: string;
+  /** 읍면동(리) 이름 — 예: "청라동", "남양읍 남양리" */
+  emdName?: string;
 };
 
 type KakaoAddressDoc = {
@@ -15,6 +17,7 @@ type KakaoAddressDoc = {
   x?: string;
   address?: {
     b_code?: string;
+    region_3depth_name?: string;
     main_address_no?: string;
     sub_address_no?: string;
     mountain_yn?: string;
@@ -70,6 +73,7 @@ function fromKakaoDoc(
     ji: addr?.sub_address_no || road?.sub_address_no || undefined,
     mountain: addr?.mountain_yn === 'Y' || road?.mountain_yn === 'Y',
     buildingName: road?.building_name || undefined,
+    emdName: addr?.region_3depth_name?.trim() || undefined,
   };
 }
 
@@ -87,6 +91,7 @@ async function enrichGeoWithCoordLookup(
     ji: geo.ji ?? enriched.ji,
     mountain: geo.mountain ?? enriched.mountain,
     buildingName: geo.buildingName ?? enriched.buildingName,
+    emdName: geo.emdName ?? enriched.emdName,
   };
 }
 

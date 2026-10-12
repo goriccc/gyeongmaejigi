@@ -157,7 +157,7 @@ export function calcCostItems(
     {
       key: 'regist',
       name: '등기법무비',
-      note: '약 70~120만원 (견적 협의 가능) — 100만원 가정치',
+      note: '법무사 견적에 따라 다름 (협의 가능) — 150만원 가정치',
       amount: FIXED_COSTS.registration,
       rate: null,
       kind: 'required',

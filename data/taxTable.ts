@@ -15,7 +15,7 @@ export const MULTI_HOUSE_SURCHARGE_RATE = 0.08;
 
 /** 모듈 D 고정 비용 가정치 (원) */
 export const FIXED_COSTS = {
-  registration: 1_000_000,
+  registration: 1_500_000,
   housingBond: 1_500_000,
   eviction: 2_500_000,
   /** 말소비 — 필수 고정 */

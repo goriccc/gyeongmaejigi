@@ -109,7 +109,7 @@ describe('convergeBid', () => {
       conditionalWon: { miscOther: 300_000 },
       housingBond: { customerBurden: 882_940, note: 'excel' },
     });
-    expect(result.bidPrice).toBeCloseTo(467_229_116, -3);
+    expect(result.bidPrice).toBeCloseTo(466_745_038, -3);
   });
 
   it('건물분 부가세는 입찰가가 아닌 세전·세후수익만 낮춘다', () => {
@@ -157,7 +157,7 @@ describe('convergeBid', () => {
       conditionalWon: { miscOther: 300_000 },
       housingBond: { customerBurden: 882_940, note: 'excel' },
     });
-    expect(result.profitDetailedTotal).toBeCloseTo(19_970_884, -3);
+    expect(result.profitDetailedTotal).toBeCloseTo(20_454_962, -3);
     expect(result.invested).toBeCloseTo(
       calcInvestedCapital(
         result.bidPrice,
@@ -194,7 +194,7 @@ describe('convergeBid', () => {
       housingBond: { customerBurden: 882_940, note: 'excel' },
     });
     expect(result.effectiveSellPrice).toBe(553_000_000);
-    expect(result.profitDetailedTotal).toBeCloseTo(19_970_884, -3);
+    expect(result.profitDetailedTotal).toBeCloseTo(20_454_962, -3);
     expect(result.grossProfit).toBeCloseTo(65_800_000, -3);
     expect(result.netProfit).toBeCloseTo(
       result.grossProfit - result.transferTax - result.localIncomeTax,

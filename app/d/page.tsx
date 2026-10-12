@@ -238,6 +238,10 @@ export default function BidCalcPage() {
   const [housingBondError, setHousingBondError] = useState<string | null>(
     null,
   );
+  const [officialLookupLoading, setOfficialLookupLoading] = useState(false);
+  const [officialLookupMsg, setOfficialLookupMsg] = useState<string | null>(
+    null,
+  );
   const [buildingVatState, setBuildingVatState] =
     useState<BuildingVatSectionState>(() =>
       buildingVatStateFromSaved(saved, activeCase?.exclusiveAreaM2),
@@ -268,9 +272,46 @@ export default function BidCalcPage() {
         buildingVatStateFromSaved(undefined, activeCase?.exclusiveAreaM2),
       );
     }
+    setOfficialLookupMsg(null);
   }, [activeCase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const officialPriceWon = parseNumberInput(officialPrice);
+
+  const lookupOfficialPrice = useCallback(async () => {
+    const address = activeCase?.address?.trim();
+    if (!address) return;
+    setOfficialLookupLoading(true);
+    setOfficialLookupMsg(null);
+    try {
+      const res = await fetch(
+        `/api/official-price?${new URLSearchParams({ address })}`,
+        { signal: AbortSignal.timeout(30_000) },
+      );
+      const data = (await res.json()) as
+        | { ok: true; officialPrice: number; label: string }
+        | { ok: false; error: string };
+      if (!data.ok) {
+        setOfficialLookupMsg(data.error);
+        return;
+      }
+      setOfficialPrice(formatComma(data.officialPrice));
+      setOfficialLookupMsg(`${data.label} 적용`);
+    } catch (e) {
+      setOfficialLookupMsg(
+        e instanceof Error && e.name === 'TimeoutError'
+          ? '공시가격 조회 시간 초과 — 직접 입력해 주세요.'
+          : '공시가격 조회에 실패했습니다. 직접 입력해 주세요.',
+      );
+    } finally {
+      setOfficialLookupLoading(false);
+    }
+  }, [activeCase?.address]);
+
+  useEffect(() => {
+    if (!activeCase?.address?.trim()) return;
+    if (activeCase.bidCalcInputs?.officialPrice) return;
+    void lookupOfficialPrice();
+  }, [activeCase?.id, activeCase?.address]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (officialPriceWon <= 0) {
@@ -680,6 +721,26 @@ export default function BidCalcPage() {
               }}
               placeholder="부동산공시가격 알리미 기준"
             />
+            {activeCase?.address ? (
+              <p className="field-hint">
+                <button
+                  type="button"
+                  className="btn-text"
+                  onClick={lookupOfficialPrice}
+                  disabled={officialLookupLoading}
+                >
+                  공시가격 다시 조회
+                </button>
+                {officialLookupLoading ? (
+                  <>
+                    {' '}
+                    <BounceDots />
+                  </>
+                ) : officialLookupMsg ? (
+                  ` · ${officialLookupMsg}`
+                ) : null}
+              </p>
+            ) : null}
             <p className="field-hint">
               국민주택채권 매입·할인비 자동 계산에 사용합니다. 할인율은
               당일(주말·공휴일은 직전 영업일) 주택도시기금 고시 기준입니다.
