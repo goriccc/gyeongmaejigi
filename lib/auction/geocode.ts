@@ -111,6 +111,9 @@ export function geocodeQueryCandidates(address: string): string[] {
   const lotMatch = trimmed.match(/^(.*?[동읍면리]\s+\d+(?:-\d+)?)/);
   if (lotMatch?.[1]) add(lotMatch[1]);
 
+  const roadMatch = trimmed.match(/^(.*?[로길]\s*\d+(?:-\d+)?)(?=\s|,|\(|$)/);
+  if (roadMatch?.[1]) add(roadMatch[1]);
+
   return out;
 }
 
