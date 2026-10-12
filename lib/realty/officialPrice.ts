@@ -110,7 +110,16 @@ async function vworldFetch<T>(
     pageNo: '1',
     ...params,
   }).toString();
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  } catch (e) {
+    throw new Error(
+      e instanceof Error && e.name === 'TimeoutError'
+        ? '브이월드 응답 시간 초과'
+        : '브이월드 연결 실패',
+    );
+  }
   if (!res.ok) throw new Error(`브이월드 응답 오류 (${res.status})`);
   const data = (await res.json()) as Record<
     string,
