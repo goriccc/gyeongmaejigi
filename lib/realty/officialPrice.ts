@@ -228,6 +228,28 @@ async function lookupIndvd(
   };
 }
 
+async function kakaoUnavailableReason(): Promise<string | null> {
+  const key = process.env.KAKAO_REST_API_KEY?.trim();
+  if (!key) return 'KAKAO_REST_API_KEY 미설정';
+  try {
+    const res = await fetch(
+      `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent('서울특별시 중구 세종대로 110')}`,
+      {
+        headers: { Authorization: `KakaoAK ${key}` },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (res.ok) return null;
+    const body = (await res.json().catch(() => null)) as {
+      errorType?: string;
+      message?: string;
+    } | null;
+    return `카카오 응답 ${res.status}${body?.errorType ? ` ${body.errorType}` : ''}${body?.message ? `: ${body.message}` : ''}`;
+  } catch (e) {
+    return e instanceof Error ? `카카오 연결 실패 (${e.name})` : '카카오 연결 실패';
+  }
+}
+
 /**
  * 사건 소재지로 공시가격(공동주택가격 → 개별주택가격 순)을 조회합니다.
  * 올해 공시분이 없으면 전년도 값을 씁니다.
@@ -244,9 +266,12 @@ export async function resolveOfficialPrice(
   const geo = await geocodeAddressDetail(address);
   const pnus = geo ? pnuCandidatesFromGeo(geo) : [];
   if (pnus.length === 0) {
+    const reason = await kakaoUnavailableReason();
     return {
       ok: false,
-      error: '소재지에서 지번(필지)을 찾지 못했습니다. 공시가격을 직접 입력해 주세요.',
+      error: reason
+        ? `주소 검색(카카오)을 쓸 수 없습니다 — ${reason}. 공시가격을 직접 입력해 주세요.`
+        : '소재지에서 지번(필지)을 찾지 못했습니다. 공시가격을 직접 입력해 주세요.',
     };
   }
 
