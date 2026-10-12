@@ -165,6 +165,57 @@ function clampBidPrepayPct(n: number): number {
   return Math.min(2, Math.max(0, Math.round(n * 100) / 100));
 }
 
+function RangeStepButton({
+  dir,
+  label,
+  disabled,
+  onStep,
+}: {
+  dir: -1 | 1;
+  label: string;
+  disabled: boolean;
+  onStep: (dir: -1 | 1) => void;
+}) {
+  const timers = useRef<{ delay?: number; repeat?: number }>({});
+  const stop = useCallback(() => {
+    window.clearTimeout(timers.current.delay);
+    window.clearInterval(timers.current.repeat);
+    timers.current = {};
+  }, []);
+  useEffect(() => stop, [stop]);
+  useEffect(() => {
+    if (disabled) stop();
+  }, [disabled, stop]);
+
+  return (
+    <button
+      type="button"
+      className="calc-range-step"
+      aria-label={`${label} 0.01% ${dir < 0 ? '내리기' : '올리기'}`}
+      disabled={disabled}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        onStep(dir);
+        stop();
+        timers.current.delay = window.setTimeout(() => {
+          timers.current.repeat = window.setInterval(() => onStep(dir), 60);
+        }, 400);
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onStep(dir);
+        }
+      }}
+    >
+      {dir < 0 ? '−' : '+'}
+    </button>
+  );
+}
+
 function parseWonInputField(value: string): number | undefined {
   if (value.trim() === '') return undefined;
   const n = parseNumberInput(value);
@@ -225,6 +276,27 @@ export default function BidCalcPage() {
   const [marginDraft, setMarginDraft] = useState(() =>
     resolveBidMargin(saved?.margin).toFixed(2),
   );
+  const stepLoanRate = useCallback((dir: -1 | 1) => {
+    setLoanRate((prev) => {
+      const next = clampBidLoanPct(prev + dir * 0.01);
+      setLoanRateDraft(next.toFixed(2));
+      return next;
+    });
+  }, []);
+  const stepPrepayRate = useCallback((dir: -1 | 1) => {
+    setPrepayRate((prev) => {
+      const next = clampBidPrepayPct(prev + dir * 0.01);
+      setPrepayRateDraft(next.toFixed(2));
+      return next;
+    });
+  }, []);
+  const stepMargin = useCallback((dir: -1 | 1) => {
+    setMargin((prev) => {
+      const next = clampBidMarginPct(prev + dir * 0.01);
+      setMarginDraft(next.toFixed(2));
+      return next;
+    });
+  }, []);
   const [conditionalWonFields, setConditionalWonFields] = useState<
     Record<ConditionalCostKey, string>
   >(() => conditionalWonFieldsFromSaved(saved));
@@ -783,6 +855,12 @@ export default function BidCalcPage() {
               <span className="range-val">{loanRate.toFixed(2)}%</span>
             </label>
             <div className="calc-range-slider-row">
+              <RangeStepButton
+                dir={-1}
+                label="대출이자율"
+                disabled={loanRate <= 2}
+                onStep={stepLoanRate}
+              />
               <input
                 id="loanRate"
                 type="range"
@@ -795,6 +873,12 @@ export default function BidCalcPage() {
                   setLoanRate(next);
                   setLoanRateDraft(next.toFixed(2));
                 }}
+              />
+              <RangeStepButton
+                dir={1}
+                label="대출이자율"
+                disabled={loanRate >= 8}
+                onStep={stepLoanRate}
               />
               <label className="calc-range-direct" htmlFor="loanRateDirect">
                 <input
@@ -838,6 +922,12 @@ export default function BidCalcPage() {
               <span className="range-val">{prepayRate.toFixed(2)}%</span>
             </label>
             <div className="calc-range-slider-row">
+              <RangeStepButton
+                dir={-1}
+                label="중도상환수수료율"
+                disabled={prepayRate <= 0}
+                onStep={stepPrepayRate}
+              />
               <input
                 id="prepayRate"
                 type="range"
@@ -850,6 +940,12 @@ export default function BidCalcPage() {
                   setPrepayRate(next);
                   setPrepayRateDraft(next.toFixed(2));
                 }}
+              />
+              <RangeStepButton
+                dir={1}
+                label="중도상환수수료율"
+                disabled={prepayRate >= 2}
+                onStep={stepPrepayRate}
               />
               <label className="calc-range-direct" htmlFor="prepayRateDirect">
                 <input
@@ -895,6 +991,12 @@ export default function BidCalcPage() {
               </span>
             </label>
             <div className="calc-range-slider-row">
+              <RangeStepButton
+                dir={-1}
+                label={ko.bidCalc.targetMarginLabel}
+                disabled={margin <= 3}
+                onStep={stepMargin}
+              />
               <input
                 id="marginRange"
                 type="range"
@@ -907,6 +1009,12 @@ export default function BidCalcPage() {
                   setMargin(next);
                   setMarginDraft(next.toFixed(2));
                 }}
+              />
+              <RangeStepButton
+                dir={1}
+                label={ko.bidCalc.targetMarginLabel}
+                disabled={margin >= 20}
+                onStep={stepMargin}
               />
               <label className="calc-range-direct" htmlFor="marginDirect">
                 <input
@@ -1022,7 +1130,7 @@ export default function BidCalcPage() {
                   }}
                 >
                   ({ko.bidCalc.actualMarginRate}{' '}
-                  {actualPreTaxMarginPct.toFixed(1)}%)
+                  {actualPreTaxMarginPct.toFixed(2)}%)
                 </span>
               </>
             ),

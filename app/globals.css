@@ -2477,6 +2477,32 @@ textarea:focus {
   min-width: 0;
 }
 
+.calc-range-step {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.calc-range-step:hover:not(:disabled) {
+  border-color: var(--brass);
+}
+
+.calc-range-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .calc-range-direct {
   display: flex;
   align-items: center;

@@ -150,12 +150,12 @@ export const ko = {
     buildingVatVerdictNotRecommended: '비추천 물건',
     buildingVatVerdictHint:
       '매도가 대비 부가세율 — 4% 이하 추천 물건 · 4.5% 이하 보통 물건 · 4.5% 초과 비추천 물건',
-    preTaxProfit: '세전 수익 (blend 후)',
+    preTaxProfit: '세전 수익 (상세비용 반영)',
     preTaxProfitHint:
       '실질 매도가 − 입찰가 − 상세비용. 목표 마진%와 비율이 다를 수 있습니다.',
     targetMarginLabel: '목표 마진 (매도가 역산용)',
     targetMarginHint:
-      '매도가 × 마진%로 1차 역산. 상세비용 blend 반영 후 아래 세전 수익과 비율이 달라질 수 있습니다.',
+      '매도가 × 마진%로 1차 역산. 상세비용을 반영하면 아래 세전 수익과 비율이 달라질 수 있습니다.',
     transferTax: '예상 소득세 (이 건 이익 기준)',
     transferTaxHint:
       '연간 다른 소득·공제·손실 미반영. 매매사업자 종합소득세율 근사치입니다.',
