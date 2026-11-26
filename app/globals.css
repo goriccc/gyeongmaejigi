@@ -2223,7 +2223,7 @@ textarea:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .field-route-day-count-edit {
@@ -2235,11 +2235,20 @@ textarea:focus {
   padding: 4px 8px;
   font-size: 12px;
   color: var(--slate);
+  box-sizing: border-box;
+  min-height: 40px;
 }
 
 .field-route-day-count-edit .field-route-count-input {
   width: 52px;
   padding: 4px 6px;
+}
+
+.field-route-add-day {
+  box-sizing: border-box;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .field-route-day-region {

@@ -478,14 +478,14 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
                   />
                 </label>
               ))}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm field-route-add-day"
+                onClick={addCustomDay}
+              >
+                일차 추가
+              </button>
             </div>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={addCustomDay}
-            >
-              일차 추가
-            </button>
           </>
         )}
       </div>
