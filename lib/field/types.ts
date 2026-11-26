@@ -11,9 +11,14 @@ export type RouteStop = {
   auctionDate: string;
 };
 
+/** 임장 동선 묶는 방식 */
+export type FieldPackMode = 'deadline' | 'region' | 'custom';
+
 export type FieldRouteDay = {
   dayIndex: number;
   label: string;
+  /** 유사지역 모드 등 — 그날 주요 시·군·구 */
+  regionLabel?: string;
   stops: RouteStop[];
   totalDistanceM?: number;
   totalDurationMs?: number;
@@ -21,11 +26,15 @@ export type FieldRouteDay = {
 };
 
 export type FieldRoutePlan = {
+  packMode: FieldPackMode;
   dailyCount: number;
   startPoint: GeoPoint | null;
   days: FieldRouteDay[];
   missingGeoCaseIds: string[];
 };
+
+/** 직접 설정 — 일차별 사건 id 목록 */
+export type FieldCustomDays = string[][];
 
 export type FieldRouteApiStop = {
   lat: number;

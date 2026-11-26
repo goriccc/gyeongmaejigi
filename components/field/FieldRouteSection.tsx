@@ -5,10 +5,16 @@ import { Section } from '@/components/ui/Section';
 import { KakaoRouteMap } from '@/components/field/KakaoRouteMap';
 import { FieldRouteGuide } from '@/components/field/FieldRouteGuide';
 import {
+  loadCustomDayCounts,
+  loadCustomDays,
   loadDailyCount,
+  loadPackMode,
   loadRouteMode,
   loadSavedStart,
+  saveCustomDayCounts,
+  saveCustomDays,
   saveDailyCount,
+  savePackMode,
   saveRouteMode,
   saveStartPoint,
 } from '@/lib/field/fieldRoutePrefs';
@@ -17,9 +23,19 @@ import {
   getCachedRoute,
   setCachedRoute,
 } from '@/lib/field/fieldRouteCache';
-import { buildFieldRoutePlan } from '@/lib/field/routePlanner';
+import {
+  buildFieldRoutePlan,
+  clampDailyCount,
+  filterRoutableCases,
+  moveCaseBetweenDays,
+  packModeHint,
+  packModeTitle,
+  reconcileCustomDays,
+} from '@/lib/field/routePlanner';
 import { resolveRoutePathLegs } from '@/lib/field/routePathSplit';
 import type {
+  FieldCustomDays,
+  FieldPackMode,
   FieldRouteDay,
   FieldRouteLegGuide,
   FieldRouteMode,
@@ -45,6 +61,9 @@ type FieldRouteSectionProps = {
 export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) {
   const { cases, updateCase } = useCases();
   const [dailyCount, setDailyCount] = useState(3);
+  const [packMode, setPackMode] = useState<FieldPackMode>('deadline');
+  const [customDays, setCustomDays] = useState<FieldCustomDays | null>(null);
+  const [customDayCounts, setCustomDayCounts] = useState<number[]>([]);
   const [dayIndex, setDayIndex] = useState(0);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [startPoint, setStartPoint] = useState<GeoPoint | null>(null);
@@ -57,16 +76,58 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const autoGeocodeDone = useRef(false);
+  const prefsReady = useRef(false);
 
   useEffect(() => {
     setDailyCount(loadDailyCount());
     setStartPoint(loadSavedStart());
     setRouteMode(loadRouteMode());
+    setPackMode(loadPackMode());
+    setCustomDays(loadCustomDays());
+    setCustomDayCounts(loadCustomDayCounts() ?? []);
+    prefsReady.current = true;
   }, []);
 
+  const routableIdsKey = useMemo(() => {
+    const { routable } = filterRoutableCases(cases);
+    return routable.map((c) => c.id).join('|');
+  }, [cases]);
+
+  useEffect(() => {
+    if (!prefsReady.current || packMode !== 'custom') return;
+    const { routable } = filterRoutableCases(cases);
+    const next = reconcileCustomDays(customDays, routable, dailyCount);
+    const same =
+      customDays &&
+      customDays.length === next.length &&
+      customDays.every(
+        (day, i) =>
+          day.length === next[i]!.length &&
+          day.every((id, j) => id === next[i]![j]),
+      );
+    if (!same) {
+      setCustomDays(next);
+      saveCustomDays(next);
+      setCustomDayCounts((prev) => {
+        const counts = next.map((day, i) =>
+          clampDailyCount(prev[i] ?? (day.length || dailyCount)),
+        );
+        saveCustomDayCounts(counts);
+        return counts;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- routableIdsKey drives case membership
+  }, [packMode, routableIdsKey, dailyCount]);
+
   const plan = useMemo(
-    () => buildFieldRoutePlan(cases, dailyCount, startPoint),
-    [cases, dailyCount, startPoint],
+    () =>
+      buildFieldRoutePlan(cases, {
+        dailyCount,
+        packMode,
+        startPoint,
+        customDays: packMode === 'custom' ? customDays : null,
+      }),
+    [cases, dailyCount, packMode, startPoint, customDays],
   );
 
   const selectStop = useCallback((caseId: string | null) => {
@@ -239,10 +300,75 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
   }, [dayIndex, plan.days.length]);
 
   function onDailyCountChange(n: number) {
-    const v = Math.max(1, Math.min(10, Math.floor(n)));
+    const v = clampDailyCount(n);
     setDailyCount(v);
     saveDailyCount(v);
     setDayIndex(0);
+  }
+
+  function onPackModeChange(mode: FieldPackMode) {
+    if (mode === 'custom') {
+      const { routable } = filterRoutableCases(cases);
+      const seeded =
+        customDays && customDays.some((d) => d.length > 0)
+          ? reconcileCustomDays(customDays, routable, dailyCount)
+          : plan.days.map((d) => d.stops.map((s) => s.caseId));
+      const next =
+        seeded.length > 0
+          ? seeded
+          : reconcileCustomDays(null, routable, dailyCount);
+      setCustomDays(next);
+      saveCustomDays(next);
+      const counts =
+        customDayCounts.length === next.length
+          ? customDayCounts
+          : next.map((d) => clampDailyCount(d.length || dailyCount));
+      setCustomDayCounts(counts);
+      saveCustomDayCounts(counts);
+    }
+    setPackMode(mode);
+    savePackMode(mode);
+    setDayIndex(0);
+  }
+
+  function onCustomDayCountChange(index: number, value: number) {
+    const v = clampDailyCount(value);
+    setCustomDayCounts((prev) => {
+      const next = [...prev];
+      while (next.length <= index) next.push(dailyCount);
+      next[index] = v;
+      saveCustomDayCounts(next);
+      return next;
+    });
+  }
+
+  function addCustomDay() {
+    setCustomDays((prev) => {
+      const base = prev ?? plan.days.map((d) => d.stops.map((s) => s.caseId));
+      const next = [...base, []];
+      saveCustomDays(next);
+      return next;
+    });
+    setCustomDayCounts((prev) => {
+      const next = [...prev, dailyCount];
+      saveCustomDayCounts(next);
+      return next;
+    });
+  }
+
+  function moveStop(caseId: string, fromDay: number, toDay: number) {
+    const base =
+      customDays ?? plan.days.map((d) => d.stops.map((s) => s.caseId));
+    const next = moveCaseBetweenDays(base, caseId, fromDay, toDay);
+    setCustomDays(next);
+    saveCustomDays(next);
+    setCustomDayCounts((counts) => {
+      const aligned = next.map((day, i) =>
+        clampDailyCount(counts[i] ?? (day.length || dailyCount)),
+      );
+      saveCustomDayCounts(aligned);
+      return aligned;
+    });
   }
 
   function useMyLocation() {
@@ -279,22 +405,96 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
 
   const totalStops = plan.days.reduce((n, d) => n + d.stops.length, 0);
   const routeModeLabel = routeMode === 'car' ? '자차' : '대중교통';
+  const customCountMismatch =
+    packMode === 'custom' &&
+    plan.days.some(
+      (day, i) =>
+        clampDailyCount(customDayCounts[i] ?? day.stops.length) !==
+        day.stops.length,
+    );
 
   return (
-    <Section title={`마감일 우선 임장 동선 (${totalStops}건)`}>
-      <div className="field-route-controls">
-        <label className="field-route-control">
-          <span className="field-route-label">하루 임장 갯수</span>
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={dailyCount}
-            onChange={(e) => onDailyCountChange(Number(e.target.value))}
-            className="field-route-count-input"
-          />
-        </label>
+    <Section title={`${packModeTitle(packMode)} (${totalStops}건)`}>
+      <div
+        className="field-route-pack-tabs"
+        role="tablist"
+        aria-label="동선 묶는 방식"
+      >
+        {(
+          [
+            ['deadline', '마감일 우선'],
+            ['region', '유사지역 우선'],
+            ['custom', '직접 설정'],
+          ] as const
+        ).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={packMode === mode}
+            className={`field-route-pack-tab${packMode === mode ? ' active' : ''}`}
+            onClick={() => onPackModeChange(mode)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+      <p className="s-note field-route-pack-hint">{packModeHint(packMode)}</p>
+
+      <div className="field-route-controls">
+        {packMode !== 'custom' ? (
+          <label className="field-route-control">
+            <span className="field-route-label">하루 임장 갯수</span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={dailyCount}
+              onChange={(e) => onDailyCountChange(Number(e.target.value))}
+              className="field-route-count-input"
+            />
+          </label>
+        ) : (
+          <>
+            <div
+              className="field-route-custom-counts"
+              aria-label="일차별 임장 건수"
+            >
+              {(customDayCounts.length > 0
+                ? customDayCounts
+                : plan.days.map((d) => d.stops.length)
+              ).map((count, i) => (
+                <label key={`day-count-${i}`} className="field-route-day-count-edit">
+                  <span>{i + 1}일차</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={count}
+                    onChange={(e) =>
+                      onCustomDayCountChange(i, Number(e.target.value))
+                    }
+                    className="field-route-count-input"
+                  />
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={addCustomDay}
+            >
+              일차 추가
+            </button>
+          </>
+        )}
+      </div>
+      {customCountMismatch ? (
+        <p className="s-note">
+          설정한 일차별 건수와 배치가 다릅니다. 목록에서 사건을 다른 날로
+          옮겨 맞추세요.
+        </p>
+      ) : null}
 
       {geoHint ? <p className="s-note">{geoHint}</p> : null}
       {geocoding ? (
@@ -330,6 +530,11 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
                 }}
               >
                 {day.label}
+                {day.regionLabel ? (
+                  <span className="field-route-day-region">
+                    {day.regionLabel}
+                  </span>
+                ) : null}
                 <span className="field-route-day-count">{day.stops.length}건</span>
               </button>
             ))}
@@ -438,6 +643,25 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
             <span style={{ fontFamily: 'var(--mono)' }}>
               마감 {formatAuctionDateShort(stop.auctionDate)}
             </span>
+            {packMode === 'custom' ? (
+              <span className="field-route-move">
+                <button
+                  type="button"
+                  className="btn-text"
+                  disabled={dayIndex <= 0}
+                  onClick={() => moveStop(stop.caseId, dayIndex, dayIndex - 1)}
+                >
+                  ← 전날
+                </button>
+                <button
+                  type="button"
+                  className="btn-text"
+                  onClick={() => moveStop(stop.caseId, dayIndex, dayIndex + 1)}
+                >
+                  다음날 →
+                </button>
+              </span>
+            ) : null}
           </span>
         </div>
       ))}

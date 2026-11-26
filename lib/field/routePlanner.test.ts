@@ -3,8 +3,10 @@ import {
   buildFieldRoutePlan,
   filterRoutableCases,
   haversineM,
+  moveCaseBetweenDays,
   optimizeVisitOrder,
   packCasesByDailyCount,
+  packCasesByRegion,
 } from '@/lib/field/routePlanner';
 import type { CaseFile } from '@/types/case';
 
@@ -13,6 +15,7 @@ function mockCase(
   lat: number,
   lng: number,
   auctionDate: string,
+  address = '서울특별시 중구 세종대로 110',
 ): CaseFile {
   return {
     id,
@@ -24,7 +27,7 @@ function mockCase(
     auctionDate,
     latitude: lat,
     longitude: lng,
-    address: '서울',
+    address,
     riskFlags: [],
     checklist: [],
   };
@@ -33,9 +36,9 @@ function mockCase(
 describe('routePlanner', () => {
   it('packCasesByDailyCount splits by deadline order', () => {
     const cases = [
-      mockCase('a', 37.5, 127.0, '2026-09-01'),
-      mockCase('b', 37.51, 127.01, '2026-09-05'),
-      mockCase('c', 37.52, 127.02, '2026-09-10'),
+      mockCase('a', 37.5, 127.0, '2027-03-01'),
+      mockCase('b', 37.51, 127.01, '2027-03-05'),
+      mockCase('c', 37.52, 127.02, '2027-03-10'),
     ];
     const packed = packCasesByDailyCount(cases, 2);
     expect(packed).toHaveLength(2);
@@ -71,8 +74,8 @@ describe('routePlanner', () => {
 
   it('buildFieldRoutePlan groups all routable cases', () => {
     const cases = [
-      mockCase('a', 37.5, 127.0, '2026-09-01'),
-      mockCase('b', 37.51, 127.01, '2026-09-05'),
+      mockCase('a', 37.5, 127.0, '2027-03-01'),
+      mockCase('b', 37.51, 127.01, '2027-03-05'),
     ];
     const plan = buildFieldRoutePlan(cases, 3);
     expect(plan.days).toHaveLength(1);
@@ -88,10 +91,88 @@ describe('routePlanner', () => {
   });
 
   it('낙찰 사건은 임장 동선에서 제외한다', () => {
-    const won = mockCase('won', 37.5, 127.0, '2026-08-01');
+    const won = mockCase('won', 37.5, 127.0, '2027-02-01');
     won.bidOutcome = 'won';
-    const prep = mockCase('prep', 37.51, 127.01, '2026-09-10');
+    const prep = mockCase('prep', 37.51, 127.01, '2027-03-10');
     const { routable } = filterRoutableCases([won, prep]);
     expect(routable.map((c) => c.id)).toEqual(['prep']);
+  });
+
+  it('유사지역 우선은 시·군·구끼리 모은 뒤 하루 건수로 자른다', () => {
+    // 고양(출발지 근처) vs 평택(멀리) — 마감일이 섞여 있어도 권역이 먼저
+    const goyangStart = { lat: 37.658, lng: 126.832 };
+    const cases = [
+      mockCase(
+        'py1',
+        36.99,
+        127.09,
+        '2027-03-01',
+        '경기도 평택시 소사벌로 1',
+      ),
+      mockCase(
+        'gy1',
+        37.655,
+        126.83,
+        '2027-03-05',
+        '경기도 고양시 덕양구 행신동 1',
+      ),
+      mockCase(
+        'gy2',
+        37.66,
+        126.84,
+        '2027-03-10',
+        '경기도 고양시 덕양구 화정동 2',
+      ),
+      mockCase(
+        'py2',
+        37.0,
+        127.1,
+        '2027-03-12',
+        '경기도 평택시 고덕로 2',
+      ),
+    ];
+    const packed = packCasesByRegion(cases, 3, goyangStart);
+    const flat = packed.flat().map((c) => c.id);
+    // 고양 권역이 평택보다 앞에 오고, 권역 내부는 마감일 순
+    expect(flat.indexOf('gy1')).toBeLessThan(flat.indexOf('py1'));
+    expect(flat.indexOf('gy1')).toBeLessThan(flat.indexOf('gy2'));
+    expect(flat.indexOf('py1')).toBeLessThan(flat.indexOf('py2'));
+  });
+
+  it('직접 설정에서 사건을 다른 날로 옮긴다', () => {
+    const moved = moveCaseBetweenDays(
+      [
+        ['a', 'b'],
+        ['c'],
+      ],
+      'b',
+      0,
+      1,
+    );
+    expect(moved).toEqual([['a'], ['c', 'b']]);
+  });
+
+  it('region 모드 plan에 regionLabel이 붙는다', () => {
+    const plan = buildFieldRoutePlan(
+      [
+        mockCase(
+          'a',
+          37.65,
+          126.83,
+          '2027-03-01',
+          '경기도 고양시 덕양구 행신동 1',
+        ),
+        mockCase(
+          'b',
+          37.66,
+          126.84,
+          '2027-03-02',
+          '경기도 고양시 덕양구 화정동 2',
+        ),
+      ],
+      { dailyCount: 3, packMode: 'region', startPoint: { lat: 37.65, lng: 126.83 } },
+    );
+    expect(plan.packMode).toBe('region');
+    expect(plan.days[0]!.regionLabel).toContain('고양시');
   });
 });

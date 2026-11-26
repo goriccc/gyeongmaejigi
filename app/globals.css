@@ -2189,6 +2189,77 @@ textarea:focus {
   pointer-events: none;
 }
 
+.field-route-pack-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
+.field-route-pack-tab {
+  border: none;
+  background: var(--paper);
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--slate);
+}
+
+.field-route-pack-tab + .field-route-pack-tab {
+  border-left: 1px solid var(--line);
+}
+
+.field-route-pack-tab.active {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.field-route-pack-hint {
+  margin: 0 0 14px;
+}
+
+.field-route-custom-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.field-route-day-count-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--slate);
+}
+
+.field-route-day-count-edit .field-route-count-input {
+  width: 52px;
+  padding: 4px 6px;
+}
+
+.field-route-day-region {
+  font-size: 11.5px;
+  color: var(--slate);
+}
+
+.field-route-day-tab.active .field-route-day-region {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.field-route-move {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
 .field-route-controls {
   display: flex;
   flex-wrap: wrap;
