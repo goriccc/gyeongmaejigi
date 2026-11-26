@@ -2223,32 +2223,38 @@ textarea:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: flex-end;
+  align-items: center;
+}
+
+.field-route-day-count-edit,
+.field-route-add-day.btn {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .field-route-day-count-edit {
-  display: flex;
-  align-items: center;
   gap: 6px;
   border: 1px solid var(--line);
   background: var(--paper);
-  padding: 4px 8px;
+  padding: 0 8px;
   font-size: 12px;
   color: var(--slate);
-  box-sizing: border-box;
-  min-height: 40px;
 }
 
 .field-route-day-count-edit .field-route-count-input {
   width: 52px;
-  padding: 4px 6px;
+  height: 28px;
+  padding: 0 6px;
+  line-height: 1;
 }
 
-.field-route-add-day {
-  box-sizing: border-box;
-  min-height: 40px;
-  padding-top: 0;
-  padding-bottom: 0;
+.field-route-add-day.btn {
+  padding: 0 14px;
 }
 
 .field-route-day-region {

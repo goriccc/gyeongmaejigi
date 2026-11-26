@@ -110,7 +110,7 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
       saveCustomDays(next);
       setCustomDayCounts((prev) => {
         const counts = next.map((day, i) =>
-          clampDailyCount(prev[i] ?? (day.length || dailyCount)),
+          clampDailyCount(prev[i] ?? dailyCount),
         );
         saveCustomDayCounts(counts);
         return counts;
@@ -319,10 +319,11 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
           : reconcileCustomDays(null, routable, dailyCount);
       setCustomDays(next);
       saveCustomDays(next);
+      // 일차별 목표 건수는 하루 임장 갯수(기본 3)를 쓰고, 그날 사건 수로 덮지 않음
       const counts =
         customDayCounts.length === next.length
           ? customDayCounts
-          : next.map((d) => clampDailyCount(d.length || dailyCount));
+          : next.map(() => clampDailyCount(dailyCount));
       setCustomDayCounts(counts);
       saveCustomDayCounts(counts);
     }
@@ -363,8 +364,8 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
     setCustomDays(next);
     saveCustomDays(next);
     setCustomDayCounts((counts) => {
-      const aligned = next.map((day, i) =>
-        clampDailyCount(counts[i] ?? (day.length || dailyCount)),
+      const aligned = next.map((_, i) =>
+        clampDailyCount(counts[i] ?? dailyCount),
       );
       saveCustomDayCounts(aligned);
       return aligned;
@@ -462,7 +463,7 @@ export function FieldRouteSection({ onFocusCase }: FieldRouteSectionProps = {}) 
             >
               {(customDayCounts.length > 0
                 ? customDayCounts
-                : plan.days.map((d) => d.stops.length)
+                : plan.days.map(() => dailyCount)
               ).map((count, i) => (
                 <label key={`day-count-${i}`} className="field-route-day-count-edit">
                   <span>{i + 1}일차</span>
