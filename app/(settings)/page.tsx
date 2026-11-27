@@ -505,7 +505,7 @@ export default function EntryMatchPage() {
 
   return (
     <>
-      <div className="chapter-mark">설정 · 투자 상담</div>
+      <div className="chapter-mark">내 입찰 조건 설정</div>
       <h1 className="page-title">
         지금, <em>얼마까지</em>
         <br />

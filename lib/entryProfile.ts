@@ -19,7 +19,7 @@ function readRaw(): EntryProfile | null {
   }
 }
 
-/** 글로벌 입찰 조건 (설정 · 투자 상담) — 기기별 localStorage */
+/** 글로벌 입찰 조건 (내 입찰 조건 설정) — 기기별 localStorage */
 export function loadEntryProfile(): EntryProfile | null {
   return readRaw();
 }

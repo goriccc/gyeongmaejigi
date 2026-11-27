@@ -2,7 +2,7 @@ export const ko = {
   brand: '경매지기',
   tagline: '입찰 전, 한 번 더 확인하세요',
   nav: {
-    dashboard: '투자상담',
+    dashboard: '내 입찰 조건 설정',
     a: '입찰사건',
     b: '권리분석',
     c: '임장준비',
@@ -12,7 +12,7 @@ export const ko = {
   },
   rail: {
     index: '사건 진행 목차',
-    cover: '투자 상담',
+    cover: '내 입찰 조건 설정',
     ch1: '입찰사건',
     ch2: '권리분석',
     ch3: '임장 준비',
@@ -26,7 +26,7 @@ export const ko = {
     titleEm: '한 번 더',
     titleAfter: ' 확인하세요.',
     lead: '시드머니 확인부터 임장, 입찰가 산정, 명도까지 — 경매 한 건이 끝날 때까지의 전 과정을 잇습니다. 판단은 항상 본인 몫이고, 저희는 놓친 부분을 짚어드립니다.',
-    cta: '설정 · 투자 상담 시작 →',
+    cta: '내 입찰 조건 설정 →',
     ctaEviction: '명도 코칭만 이용 →',
     nextTask: (label: string) => `다음 할 일: ${label} →`,
     lifecycle: '활성 사건 진행',
@@ -167,7 +167,7 @@ export const ko = {
     entryProfileApplied: '제1장 입찰 조건 반영 (주택수·규제·LTV)',
     entryProfileDefault:
       '제1장 입찰 조건 미설정 — 무주택·LTV 70% 가정. 설정에서 조건을 입력하세요.',
-    entryProfileLink: '투자 상담에서 입찰 조건 설정 →',
+    entryProfileLink: '내 입찰 조건 설정 →',
     ltvApplied: '적용 LTV',
     marginTargetAmt: '역산 목표수익 (매도가×마진%)',
     actualMarginRate: '실질 세전수익률',

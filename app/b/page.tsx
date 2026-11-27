@@ -9,6 +9,11 @@ import { buildChecklist } from '@/lib/checklist';
 import { mergeRiskFlagsForChecklist } from '@/lib/llm/rightsPrompt';
 import { readNdjsonStream } from '@/lib/http/readNdjsonStream';
 import { RIGHTS_CLIENT_TIMEOUT_MS } from '@/lib/llm/fetchTimeout';
+import {
+  loadRightsQuotaUsedClient,
+  markRightsQuotaUsedClient,
+  RIGHTS_DAILY_LIMIT_MESSAGE,
+} from '@/lib/rights/dailyQuota';
 import { afterRiskFlagsSaved } from '@/lib/stage';
 import { ko } from '@/messages/ko';
 import type {
@@ -32,6 +37,11 @@ export default function RightsAnalysisPage() {
     activeCase?.rightsAnalysis ?? null,
   );
   const [dragOver, setDragOver] = useState(false);
+  const [quotaUsed, setQuotaUsed] = useState(false);
+
+  useEffect(() => {
+    setQuotaUsed(loadRightsQuotaUsedClient());
+  }, []);
 
   useEffect(() => {
     setJudgment(activeCase?.rightsJudgment ?? '');
@@ -77,6 +87,11 @@ export default function RightsAnalysisPage() {
 
   async function analyze() {
     if (!activeCase) return;
+    if (loadRightsQuotaUsedClient()) {
+      setQuotaUsed(true);
+      setError(RIGHTS_DAILY_LIMIT_MESSAGE);
+      return;
+    }
     setLoading(true);
     setError('');
     persistJudgment(judgment);
@@ -91,8 +106,21 @@ export default function RightsAnalysisPage() {
       const res = await fetch('/api/rights-analysis', {
         method: 'POST',
         body: form,
+        credentials: 'same-origin',
         signal: AbortSignal.timeout(RIGHTS_CLIENT_TIMEOUT_MS),
       });
+
+      if (res.status === 429) {
+        markRightsQuotaUsedClient();
+        setQuotaUsed(true);
+        throw new Error(RIGHTS_DAILY_LIMIT_MESSAGE);
+      }
+
+      if (res.ok) {
+        // 서버가 Set-Cookie로 소진 처리. 화면용 localStorage도 맞춤.
+        markRightsQuotaUsedClient();
+        setQuotaUsed(true);
+      }
 
       let latest: RightsAnalysisCompare = {
         analyzedAt: new Date().toISOString(),
@@ -122,9 +150,13 @@ export default function RightsAnalysisPage() {
           `요청 시간 초과 (${Math.round(RIGHTS_CLIENT_TIMEOUT_MS / 1000)}초) — 첨부 PDF 수를 줄여 다시 시도해 주세요.`,
         );
       } else {
-        setError(
-          err instanceof Error ? err.message : '분석 중 오류가 발생했습니다.',
-        );
+        const message =
+          err instanceof Error ? err.message : '분석 중 오류가 발생했습니다.';
+        setError(message);
+        if (message === RIGHTS_DAILY_LIMIT_MESSAGE) {
+          setQuotaUsed(true);
+          markRightsQuotaUsedClient();
+        }
       }
     } finally {
       setLoading(false);
@@ -146,7 +178,8 @@ export default function RightsAnalysisPage() {
       </h1>
       <p className="page-sub">
         등기부등본·토지등기·매각물건명세서·현황조사서를 올리면 AI가 8개 필수
-        항목을 점검합니다. PDF 원본은 서버에 저장되지 않습니다.
+        항목을 점검합니다. PDF 원본은 서버에 저장되지 않습니다. 기기당 하루
+        1회만 이용할 수 있습니다.
       </p>
 
       {!activeCase ? (
@@ -209,18 +242,28 @@ export default function RightsAnalysisPage() {
           type="button"
           className="btn btn-primary"
           onClick={() => void analyze()}
-          disabled={loading || !activeCase}
+          disabled={loading || !activeCase || quotaUsed}
         >
-          {loading ? 'AI 분석 중…' : 'AI 권리분석 시작'}
+          {loading
+            ? 'AI 분석 중…'
+            : quotaUsed
+              ? '오늘 분석 횟수를 모두 사용했습니다'
+              : 'AI 권리분석 시작'}
         </button>
         {error ? (
           <p className="notice-inline" style={{ color: 'var(--seal)' }}>
             {error}
           </p>
         ) : null}
+        {quotaUsed && !error ? (
+          <p className="notice-inline" style={{ color: 'var(--seal)' }}>
+            {RIGHTS_DAILY_LIMIT_MESSAGE}
+          </p>
+        ) : null}
         <p className="field-hint">
           필수 8항목(말소기준권리·대항력·배당요구·유치권·인수권리·최우선변제·특수조건·토지별도등기)을
           점검합니다. 요청은 서버에서만 처리되며 원본은 저장하지 않습니다.
+          기기당 하루 1회입니다.
         </p>
       </Section>
 

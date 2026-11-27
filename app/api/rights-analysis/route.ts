@@ -5,6 +5,12 @@ import {
   MAX_PDF_BYTES,
 } from '@/lib/llm/pdfExtract';
 import type { PdfAttachment, RightsLlmPayload } from '@/lib/llm/rightsPrompt';
+import {
+  buildRightsDailyCookie,
+  isRightsQuotaUsedToday,
+  kstDateKey,
+  RIGHTS_DAILY_LIMIT_MESSAGE,
+} from '@/lib/rights/dailyQuota';
 import type { ModelAnalysisResult, ParsedRightsFields } from '@/types/case';
 
 export const runtime = 'nodejs';
@@ -45,6 +51,19 @@ function ndjsonLine(obj: unknown): Uint8Array {
 }
 
 export async function POST(req: Request) {
+  if (isRightsQuotaUsedToday(req.headers.get('cookie'))) {
+    return new Response(
+      JSON.stringify({
+        type: 'error',
+        error: RIGHTS_DAILY_LIMIT_MESSAGE,
+      }) + '\n',
+      {
+        status: 429,
+        headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+      },
+    );
+  }
+
   let form: FormData;
   try {
     form = await req.formData();
@@ -152,10 +171,13 @@ export async function POST(req: Request) {
     },
   });
 
+  // 요청 수락 시점에 소진 — 이중 클릭·병렬 요청으로 LLM이 두 번 도는 것을 막습니다.
+  const dayKey = kstDateKey();
   return new Response(stream, {
     headers: {
       'Content-Type': 'application/x-ndjson; charset=utf-8',
       'Cache-Control': 'no-store',
+      'Set-Cookie': buildRightsDailyCookie(dayKey),
     },
   });
 }
