@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono, Noto_Serif_KR } from 'next/font/google';
 import localFont from 'next/font/local';
+import Script from 'next/script';
 import { AppShell } from '@/components/layout/AppShell';
 import './globals.css';
 
@@ -104,6 +105,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        <Script
+          id="adsense"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3698932552006269"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body
         className={`${pretendard.variable} ${notoSerif.variable} ${plexMono.variable}`}
       >
